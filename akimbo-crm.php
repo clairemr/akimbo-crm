@@ -1,66 +1,15 @@
 <?php
 /**
- * Plugin Name: Akimbo CRM
+ * Plugin Name: Akimbo CRM 2.1
  * Plugin URI: #
  * Version: 2.1
  * Author: Circus Akimbo
  * Author URI: https://circusakimbo.com.au
- * Description: A simple CRM system for WordPress and Woocommerce
+ * Description: A simple CRM system for WordPress
  * License: GPL2
  */
 
 class AkimboCRM {
-	global $wpdb;
-	global $akimbo_crm_db_version;
-	$akimbo_crm_db_version = '2.1';
-	register_activation_hook( __FILE__, 'akimbo_crm_create_db_tables' );
-
-	function akimbo_crm_create_db_tables(){
-		global $wpdb;
-		global $akimbo_crm_db_version;
-		
-		$installed_ver = get_option( "akimbo_crm_db_version" );
-		if($installed_ver != $akimbo_crm_db_version){
-			$charset_collate = $wpdb->get_charset_collate();
-			require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-
-			$table_name = $wpdb->prefix . "crm_students"; 
-			$sql = "CREATE TABLE $table_name (
-			student_id int(11) NOT NULL AUTO_INCREMENT,
-			student_rel tinytext,
-			student_firstname tinytext NOT NULL,
-			student_lastname tinytext,
-			student_dob datetime DEFAULT '0000-00-00 00:00:00',
-			student_startdate datetime DEFAULT '0000-00-00 00:00:00',
-			student_waiver datetime DEFAULT '0000-00-00 00:00:00',
-			student_notes text,
-			marketing tinytext,
-			PRIMARY KEY  (student_id)
-			) $charset_collate;";
-			dbDelta( $sql );
-
-			$table_name = $wpdb->prefix . "crm_roster"; 
-			$sql = "CREATE TABLE $table_name (
-			roster_id int(11) NOT NULL AUTO_INCREMENT,
-			start_time datetime DEFAULT '0000-00-00 00:00:00',
-			roster_id int(11),
-			duration int(11),
-			shift_type tinytext,
-			location tinytext,
-			PRIMARY KEY  (roster_id)
-			) $charset_collate;";
-			dbDelta( $sql );
-			
-			/** Update db version & success message */
-			add_option( 'akimbo_crm_db_version', $akimbo_crm_db_version );
-			$update_message = "Plugin successfully updated";
-		}
-		
-		
-
-		
-	}
-	
 	/**
 	*Constructor. Called when plugin is initialised
 	*/
@@ -68,16 +17,7 @@ class AkimboCRM {
 		add_action('admin_menu', array(&$this, 'akimbo_crm_admin_menu'));
 		$this->includes();
 		add_action('admin_init', array(&$this, 'akimbo_crm_register_settings'));
-		add_action( 'plugins_loaded', 'akimbo_crm_update_db_check' );
-		
 	}
-	function akimbo_crm_update_db_check() {
-		global $akimbo_crm_db_version;
-		if ( get_site_option( 'akimbo_crm_db_version' ) != $akimbo_crm_db_version ) {
-			akimbo_crm_create_db_tables();
-		}
-	}
-	
 	
 	function akimbo_crm_admin_menu(){//Title, admin panel label, user capabilities, slug, function callback
 			$parent_slug = "akimbo-crm";
