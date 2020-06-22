@@ -82,10 +82,6 @@ function akimbo_crm_manage_classes_details($class_id){
 		echo apply_filters('manage_classes_attendance_table_title', "<h2>Mark Attendance</h2>");
 		apply_filters('manage_classes_update_trainer_dropdown', crm_update_trainer_dropdown("class", $class_id, unserialize($class->get_class_info()->trainers)));
 		apply_filters('manage_classes_mark_attendance_table', $class->display_attendance_table());
-		if($student_info['count'] <= 0){
-			apply_filters('manage_classes_cancel_class_button', crm_simple_delete_button("crm_class_list", "list_id", $class_id, "/wp-admin/admin.php?page=akimbo-crm2", "Delete class") );	
-			apply_filters('manage_classes_cancel_series_button', $class->delete_all() );	
-		}
 		do_action('manage_classes_enrolment', akimbo_crm_admin_manual_enrolment_button($class_id, $student_info['student_ids'], $class->get_class_type(), $class_info->age_slug)); 
 		//echo $class_type;
 		if($student_info['student_list']){//only show unenrol button if students are enrolled

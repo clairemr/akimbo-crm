@@ -298,7 +298,10 @@ class Akimbo_Crm_Class{
 			<tr><td colspan='2'></td><td><input type='submit' value='Update Attendance'></td>
 			</form><?php 
 		}else{
-			echo "<tr><td colspan='3'><br/>No students enrolled<br/><br/></td></tr>";
+			echo "<tr><td colspan='3'><br/>No students enrolled<br/><br/>";
+			crm_simple_delete_button("crm_class_list", "list_id", $this->class_id, "/wp-admin/admin.php?page=akimbo-crm2", "Delete class");
+			$this->delete_all();
+			echo "</td></tr>";
 		}
 		echo "</table><br/>";
 	}
