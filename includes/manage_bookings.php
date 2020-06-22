@@ -18,10 +18,10 @@ if($active_tab == 'bookings'){
 	echo apply_filters('akimbo_crm_manage_bookings_header', $header);
 	apply_filters('akimbo_crm_manage_bookings_before_calendar', crm_date_selector("akimbo-crm4"));
 
-	echo "<table border='1' width='95%'><tr>";
+	echo "<table width='95%'><tr>";
 	$days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 	for($x = 1; $x <= 7; $x++){
-		echo "<td width = '13%'>".$days[$x-1]."</td>";
+		echo "<th width = '13%'>".$days[$x-1]."</th>";
 		if($days[$x-1] == $crm_date['first_day']){$start = $x;}
 	}
 	echo "</tr>";

@@ -12,6 +12,7 @@
 register_activation_hook( __FILE__, 'akimbo_crm_create_db_tables' );
 global $akimbo_crm_db_version;
 $akimbo_crm_db_version = '2.1';
+//https://www.quora.com/How-do-premium-WordPress-plugins-validate-a-user-licence-from-their-end
 
 function akimbo_crm_create_db_tables(){
 	global $wpdb;		
@@ -90,7 +91,20 @@ class AkimboCRM {
 		$this->includes();
 		add_action('admin_init', array(&$this, 'akimbo_crm_register_settings'));
 		add_action( 'plugins_loaded', array(&$this, 'akimbo_crm_update_db_check') );
+		add_action('admin_enqueue_scripts', array(&$this, 'akimbo_crm_enqueue_styles') );
 	}
+
+	function akimbo_crm_enqueue_styles(){
+		$current_screen = get_current_screen();
+		if ( strpos($current_screen->base, 'akimbo-crm') === false) {
+			return;
+		} else {
+			wp_enqueue_style( 'admin-style', plugins_url( 'css/admin-style.css', __FILE__ ) ); 
+		}	
+		
+	}
+
+
 
 	function akimbo_crm_update_db_check() {
 		global $akimbo_crm_db_version;

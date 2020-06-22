@@ -17,6 +17,14 @@ akimbo-crm
 
 */
 
+add_action( 'admin_enqueue_scripts', 'load_admin_style' );
+function load_admin_style() {
+	wp_enqueue_script( 'admin_css', plugin_dir_url( __FILE__ ) . '/includes/admin-style.css', array(), '1.0' );
+  //wp_enqueue_style( 'admin_css', get_template_directory_uri() . '/css/admin-style.css', false, '1.0.0' );
+ }
+
+
+
 add_action( 'wp_dashboard_setup', 'crm_add_dashboard_widgets' );
 
 /**
@@ -183,7 +191,7 @@ function akimbo_crm_business_details(){
 	crm_date_selector("akimbo-crm3", "business");
 	
 	
-	echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Classes</th><th>Trainers</th><th>Students</th><th>In</th><th>Out</th><th>Total</th></tr>";
+	echo "<table width='80%''><tr><th>Classes</th><th>Trainers</th><th>Students</th><th>In</th><th>Out</th><th>Total</th></tr>";
 	$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$week_start' AND session_date <= '$week_end' ORDER BY session_date ASC");
 	$i=0;
 	$total = 0;
@@ -253,7 +261,7 @@ function akimbo_crm_business_details(){
 
 
 	echo "<h2>Parties</h2>";
-	echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Classes</th><th>Trainers</th><th>Original Order</th><th>Extra students</th><th>Out</th><th>Total</th></tr>";
+	echo "<table width='80%''><tr><th>Classes</th><th>Trainers</th><th>Original Order</th><th>Extra students</th><th>Out</th><th>Total</th></tr>";
 	$bookings = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_bookings WHERE book_ref >= '$week_start' AND book_ref <= '$week_end' ORDER BY book_ref ASC ");
 	$book_in = 0;
 	$book_out = 0;
@@ -295,7 +303,7 @@ function akimbo_crm_business_details(){
 
 
 	echo "<h2>Actual Usage</h2>";
-	echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Category</th><th>In</th><th>Out</th><th>Total</th></tr>";
+	echo "<table width='80%''><tr><th>Category</th><th>In</th><th>Out</th><th>Total</th></tr>";
 	sort($ages);//sort A-Z
 	$sum = 0;
 	foreach($ages as $display){
@@ -390,7 +398,7 @@ function akimbo_crm_business_details(){
 	?>
 
 Not sure quantity is calculating correctly for multiple kids & Active Kids vouchers aren't being included in total
-<table width='80%''><tr bgcolor = '#33ccff'><th>Class</th><th>Students</th><th>Classes</th><th>In</th><th>Out</th><th>Total</th></tr>
+<table width='80%''><tr><th>Class</th><th>Students</th><th>Classes</th><th>In</th><th>Out</th><th>Total</th></tr>
 <?php 
 
 foreach($ages as $product){
@@ -417,7 +425,7 @@ create function: for a given order number, calculate the price paid per session.
 
 Cashflow report. Quickbooks compared with Woocommerce<br/><br/>
 
-<table border='1'>Quarterly info</td></tr>
+<table><tr><td>Quarterly info</td></tr>
 <tr><td>Term 1</td></tr>
 <tr><td>Woocommerce Income</td></tr>
 <tr><td>Quickbooks Invoices</td></tr>
