@@ -24,12 +24,16 @@ class Akimbo_Crm_User extends WP_User{
 		$this->user_id = $user_id;
 		parent::__construct( $user_id );
 		$student_ids = $wpdb->get_results("SELECT student_id,student_rel FROM {$wpdb->prefix}crm_students WHERE user_id = $user_id");
-		$this->userdata = get_userdata( $user_id );
-		$firstname = $this->userdata->user_firstname;
-		if(isset($student_ids))foreach($student_ids as $student_id){
-			if($student_id->student_rel == 'user'){$this->user_student_id = $student_id->student_id;
+		//$this->userdata = get_userdata( $user_id );//
+		$this->metadata = get_user_meta( $user_id );
+		$this->firstname = $this->metadata['first_name'][0];//for some reason first_name is an array
+		//fix user first name display, then use it in automatically adding student function. Then make code live on site
+
+		if(isset($student_ids)){
+			foreach($student_ids as $student_id){
+				if($student_id->student_rel == 'user'){$this->user_student_id = $student_id->student_id;}
+				$this->student_ids .= $student_id->student_id;
 			}
-			$this->student_ids .= $student_id->student_id;
 		}else{
 			$previous_student = $wpdb->get_var("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_id DESC LIMIT 1");
 			$table = $wpdb->prefix.'crm_students';
@@ -41,12 +45,18 @@ class Akimbo_Crm_User extends WP_User{
 	}
 
 	function get_user_student_id(){
-		if(isset($this->user_student_id)){
+		global $wpdb;
+		if(isset($this->user_student_id)){//student_rel == user
 			$id = $this->user_student_id;
-		}elseif(isset($this->student_ids)){
+		}elseif(isset($this->student_ids)){//defaults first student to user
 			$id = $this->student_ids[0];
-		}else{
-			$id = NULL;
+			$table = $wpdb->prefix.'crm_students';
+			$data = array('student_rel' => 'user',);
+			$data = array('student_id' => $id,);
+			update( $table, $data, $where);
+		}else{//automatically add new student
+			$id = $wpdb->get_var("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_id DESC LIMIT 1 ") + 1;
+			akimbo_crm_auto_add_user_as_student($this->user_id, $this->firstname);
 		}
 		return $id;
 	}
@@ -92,10 +102,14 @@ class Akimbo_Crm_User extends WP_User{
 						$subscription_info['options'] = $product_ids;
 						if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
 							$subscription_info['sessions'] = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
-							$subscription_info['sessions_used']= (isset($item_data['sessions_used'])) ? $item_data['sessions_used'] : 0;
+							$subscription_info['passes'] = $subscription_info['sessions'];//allows sessions & weeks to be used interchangeably
+							$subscription_info['sessions_used'] = (isset($item_data['sessions_used'])) ? $item_data['sessions_used'] : 0;
+							$subscription_info['remaining'] = $subscription_info['sessions'] - $subscription_info['sessions_used'];
 						}elseif(isset($item_data['weeks'])){
 							$subscription_info['weeks'] = $item_data['weeks'];
+							$subscription_info['passes'] = $subscription_info['weeks'];//allows sessions & weeks to be used interchangeably
 							$subscription_info['weeks_used']= (isset($item_data['weeks_used'])) ? $item_data['weeks_used'] : 0;
+							$subscription_info['remaining'] = $subscription_info['weeks'] - $subscription_info['weeks_used'];
 						}
 						$subscription_info['expiry'] = (isset($item_data['expiry_date'])) ? $item_data['expiry_date'] : $subscription->get_date( 'next_payment' );
 						$subscription_info['parent'] = $parent;
@@ -148,6 +162,7 @@ class Akimbo_Crm_User extends WP_User{
 					
 					if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
 						$order_info['sessions'] = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
+						$order_info['passes'] = $order_info['sessions'];//allows sessions & weeks to be used interchangeably
 						$order_info['sessions_used'] = (isset($item_data['sessions_used'])) ? $item_data['sessions_used'] : 0;
 						$order_info['remaining'] = $order_info['sessions'] - $order_info['sessions_used'];
 						$order_info['product_id'] = $item_data['product_id'];
@@ -170,9 +185,10 @@ class Akimbo_Crm_User extends WP_User{
 						
 					}elseif(isset($item_data['weeks'])){
 						$order_info['weeks'] = $item_data['weeks'];
+						$order_info['passes'] = $order_info['weeks'];//allows sessions & weeks to be used interchangeably
 						$order_info['weeks_used']= (isset($item_data['weeks_used'])) ? $item_data['weeks_used'] : 0;
-						$remaining = $order_info['weeks'] - $order_info['weeks_used'];
-						if($remaining >= 1 ){
+						$order_info['remaining'] = $order_info['weeks'] - $order_info['weeks_used'];
+						if($order_info['remaining'] >= 1 ){
 							$order_info['type'] = "enrolment";
 							$order_info['order_id'] = $order_id;
 							$order_info['product_id'] = $item_data['product_id'];

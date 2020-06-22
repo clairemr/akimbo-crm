@@ -28,8 +28,14 @@ class Akimbo_Crm_Class{
 		global $wpdb;
 		$this->class_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$class_id'");
 		if(isset($this->class_info)){
-			if($this->class_info->age_slug == 'adult' && $this->class_info->class_id < 1 ){//open training
-				$this->class_info->{'capacity'} = 18;
+			if($this->class_info->age_slug == 'adult'){
+				if($this->class_info->class_id < 1 ){
+					$this->class_info->{'capacity'} = 18;//open training
+				}elseif($this->class_info->class_id == 2 ){
+					$this->class_info->{'capacity'} = 100;//virtual class
+				}else{
+					$this->class_info->{'capacity'} = 6;//regular class
+				}
 			}elseif($this->class_info->age_slug == 'kids'){
 				$this->class_info->{'capacity'} = 15;
 			}else{
@@ -38,7 +44,7 @@ class Akimbo_Crm_Class{
 			
 			$option = get_option('akimbo_crm_class_booking_window'); 
 			$this->class_info->{'booking_window'} = ($option != NULL) ? $option : '+24hrs';
-$this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_info->booking_window, strtotime($this->class_info->session_date)));
+			$this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_info->booking_window, strtotime($this->class_info->session_date)));
 			//$this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_info->booking_window, strtotime($this->class_info->session_date)));
 		}
 		
@@ -53,7 +59,6 @@ $this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_in
 		if($class_type == NULL){
 			$class_type = ($this->class_info->age_slug == "kids") ? "enrolment" : "casual";
 		}
-		
 		return $class_type;
 	}
 
@@ -64,54 +69,63 @@ $this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_in
 	function previous_class(){
 		global $wpdb;
 		$previous = $this->class_id - 1;
+		$id = 0;
 		$info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$previous'");
-		if($info->class_title == $this->class_info->class_title){
-			$id = $info->list_id;
-		}else{
-			$id = 0;
+		if($info != NULL){
+			if($info->class_title == $this->class_info->class_title && $info->class_id == $this->class_info->class_id){$id = $info->list_id;}
 		}
 		return $id;
 	}
 
 	function next_class(){
 		global $wpdb;
-		$previous = $this->class_id + 1;
-		$info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$previous'");
-		if($info->class_title == $this->class_info->class_title){
-			$id = $info->list_id;
-		}else{
-			$id = 0;
+		$next = $this->class_id + 1;
+		$id = 0;
+		$info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$next'");
+		if($info != NULL){
+			if($info->class_title == $this->class_info->class_title && $info->class_id == $this->class_info->class_id){$id = $info->list_id;}
 		}
 		return $id;
 	}
 
-	function get_student_info(){
+	function get_student_info($student_id = NULL){
 		global $wpdb;
-		$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE class_list_id = '$this->class_id'");
-		foreach ($students as $result){
-			$student = new Akimbo_Crm_Student($result->student_id);
-			$student->{'att_id'} = $result->attendance_id;
-			$student->{'attended'} = $result->attended;
-			$student->{'ord_id'} = $result->ord_id;
-			$orders[] = $result->ord_id;
-			$student_list[] = $student;
-			$student_ids[] = $student->student_id;
-			$user_list[] = $student->get_user_id();
-			$email_list[] = $student->contact_email();
-			if($student->ord_id <= 1){
-				$unpaid_students[] = $student->student_id;
+		if($student_id == NULL){
+			$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE class_list_id = '$this->class_id'");
+			foreach ($students as $result){
+				$student = new Akimbo_Crm_Student($result->student_id);
+				$student->{'att_id'} = $result->attendance_id;
+				$student->{'attended'} = $result->attended;
+				$student->{'ord_id'} = $result->ord_id;
+				$student_list[] = $student;
+				$student_ids[] = $student->student_id;
+				$orders[] = $result->ord_id;
+				$user_list[] = $student->get_user_id();
+				$email_list[] = $student->contact_email();
+				if($student->ord_id <= 1){
+					$unpaid_students[] = $student->student_id;
+				}
 			}
+
+			$student_info['student_list'] = (isset($student_list)) ? $student_list : array();
+			$student_info['student_ids'] = (isset($student_ids)) ? $student_ids : array();
+			$student_info['user_list'] = (isset($user_list)) ? $user_list : array();
+			$student_info['email_list'] = (isset($email_list)) ? $email_list : array();
+			$student_info['unpaid_students'] = (isset($unpaid_students)) ? $unpaid_students : array();
+			$student_info['count'] = (isset($student_info['student_list'])) ? count($student_info['student_list']) : 0;
+			$student_info['orders'] = (isset($orders)) ? $orders : array();
+		}else{
+			$student_info = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE class_list_id = '$this->class_id' AND student_id = '$student_id'");
 		}
 
-		$student_info['student_list'] = (isset($student_list)) ? $student_list : array();
-		$student_info['student_ids'] = (isset($student_ids)) ? $student_ids : array();
-		$student_info['user_list'] = (isset($user_list)) ? $user_list : array();
-		$student_info['email_list'] = (isset($email_list)) ? $email_list : array();
-		$student_info['unpaid_students'] = (isset($unpaid_students)) ? $unpaid_students : array();
-		$student_info['count'] = (isset($student_info['student_list'])) ? count($student_info['student_list']) : 0;
-		$student_info['orders'] = (isset($orders)) ? $orders : array();
+		
 		
 		return $student_info;
+	}
+
+	function student_count(){
+		$student_info = $this->get_student_info();
+		return $student_info['count'];
 	}
 
 	function email_list($format = 'return'){//user emails from student ids
@@ -135,6 +149,19 @@ $this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_in
 		$class_date = date($format, strtotime($this->class_info->session_date));
 		
 		return $class_date;
+	}
+
+	/**
+	*
+	* Update class date, front end function
+	*
+	*/
+	function crm_update_class_date_form(){
+		$date = explode(" ", $this->class_info->session_date);
+		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+		Date: <input type="date" name="new_class_start" value="<?php echo $date[0]; ?>"><input type="time" name="new_class_time"  value="<?php echo $date[1]; ?>"> Length: <input type="number" name="duration" value="<?php echo $this->class_info->duration; ?>">
+		<input type="hidden" name="id" value="<?php echo $id; ?>"><input type='submit' value='Update'>
+		</form><?php
 	}
 
 	function get_class_info(){
@@ -181,24 +208,24 @@ $this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_in
 		return $url;
 	}
 
-	function related_classes(){
+	function related_classes(){//used for swap student button
 		global $wpdb;
 		$age = $this->class_info->age_slug;
 		$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE age_slug = '$age' ORDER BY session_date ASC" );
 		return $classes;
 	}
 
-
-
 	function enrolment_related_classes($format = 'all'){//all, ids
 		global $wpdb;
 		$variation = $this->class_info->class_id;
 		$semester = $this->class_info->semester_slug;
+		$title = $this->class_info->class_title;//check class title so this work for casual classes too
 		$result = array();
 		if($semester != NULL){
-			$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' AND semester_slug = '$semester' ORDER BY session_date ASC" );
+			//$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' AND semester_slug = '$semester' ORDER BY session_date ASC" );
+			$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' AND semester_slug = '$semester' AND class_title = '$title' ORDER BY session_date ASC" );
 			foreach($classes as $class){
-				$result[] = ($format == "ids") ? $result[] = $class->list_id : new Akimbo_Crm_Class($class->list_id);
+				$result[] = ($format == "ids") ? $class->list_id : new Akimbo_Crm_Class($class->list_id);
 			}
 		}else{
 			$result[] = new Akimbo_Crm_Class($this->class_id);
@@ -210,6 +237,72 @@ $this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_in
 	function enrolment_related_classes_count(){
 		return count($this->enrolment_related_classes());
 	}
+
+
+	/*
+	*
+	* Display Functions
+	*
+	*/
+
+	function display_related_classes(){
+		global $wpdb;//use period to differentiate between future, period (all, future or semester e.g. T2-2020) and all
+		$i=0;
+		$class_variations = $this->enrolment_related_classes();
+		//var_dump($class_variations);
+		echo "<table width='80%''><tr bgcolor = '#33ccff'><th colspan='6' align='center'>".$this->class_info->semester_slug."</th></tr><tr bgcolor = '#89ccff'><th>Week</th><th>Class Name</th><th>Class Date</th><th>Enrolled</th><th>Attended</th><th>Details</th></tr>";
+		foreach($class_variations as $class){
+			$i++;
+			$class_info = $class->get_class_info();
+			echo "<tr><td>".$i."</td><td>".$class_info->class_title."</td><td>".$class_info->session_date."</td><td></td><td></td><td><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$class_info->list_id."'>View</a></td></tr>";
+		}
+		echo "</table>";
+	}
+
+	function display_attendance_table(){
+		$class_info = $this->get_class_info();
+		?><style>table td {
+		    border-top: thin solid; 
+		    border-bottom: thin solid;
+		    border-collapse: collapse;
+		}</style><?php
+		echo "<br/><table width='80%' style='border-collapse: collapse;'><tr bgcolor = '#33ccff'><th colspan='3'><h2>";
+		if($this->previous_class() >= 1){echo "<a href='".$this->class_admin_link($this->previous_class())."'><input type='submit' value='<'></a> ";}
+		echo $class_info->class_title." ".date("g:ia, l jS M", strtotime($class_info->session_date));
+		if($this->next_class() >= 1){echo  " <a href='".$this->class_admin_link($this->next_class())."'><input type='submit' value='>'></a>";	}
+		echo "</h2></th>";
+		$class_student_info = $this->get_student_info();
+		$students = $class_student_info['student_list'];
+		if($students){
+			?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php
+			$i=0;
+			foreach($students as $student){
+				$i++;//increment here so it gets correct number of students
+				echo "<tr><td>".$student->student_id.". ".$student->student_admin_link($student->full_name())."</td><td>";
+				if($student->ord_id >= 1){ 
+					echo "<a href='".crm_admin_order_link_from_item_id($student->ord_id)."'>".$student->ord_id."</a>";}else{echo "UNPAID";}
+				?></td><td><input type="checkbox" name="student_<?php echo $i?>" value="1" <?php if($student->attended >= 1){echo "checked='checked'";}?> 
+				>Student <?php echo $i."</td></tr>";
+				if($student->get_student_info()->student_notes){
+					echo "<tr><td colspan='2'>Notes: ".$student->get_student_info()->student_notes."</td><td></td></tr>";
+				}
+				if($student->get_student_info()->student_waiver <= 0){
+					echo "<tr><td colspan='2'>Has not completed waiver</td><td></td></tr>";
+				}
+				?><input type="hidden" name="student_<?php echo $i;?>_id" value="<?php echo $student->student_id;?>"><?php
+
+			}
+			?><input type="hidden" name="count" value="<?php echo $i;?>">
+			<input type="hidden" name="class" value="<?php echo $this->class_id;?>">
+			<input type="hidden" name="action" value="mark_attendance">
+			<tr><td colspan='2'></td><td><input type='submit' value='Update Attendance'></td>
+			</form><?php 
+		}else{
+			echo "<tr><td colspan='3'><br/>No students enrolled<br/><br/></td></tr>";
+		}
+		echo "</table><br/>";
+	}
+
 
 	function class_semester(){
 		global $wpdb;
@@ -319,4 +412,13 @@ $this->class_info->{'cancel_date'} = date("Y-m-d-H:i", strtotime($this->class_in
 		}
 		return $result;
 	}
+
+	function delete_all(){
+		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+		<input type="hidden" name="class_id" value="<?php echo $this->class_id; ?>">
+		<input type='hidden' name='action' value='crm_delete_class_series'>
+		<b><input type='submit' value='Delete Series'></b></form><?php
+	}
+
+
 }

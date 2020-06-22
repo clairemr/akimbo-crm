@@ -8,10 +8,9 @@
 /*************
 Reference list
 **************
-
-crm_update_trainer_dropdown($type, $id, $trainers, $include = NULL): "class"/"booking", class_id/book_ref
-crm_trainer_dropdown_list()//Sample use: <select name="trainer"><option value="0">No trainer</option>
-		<?php crm_trainer_dropdown_list(); ?></select> 
+crm_update_trainer_dropdown($type, $id, $trainers, $include = NULL)// "class"/"booking", class_id/book_ref, array of trainers
+	*action: crm_update_trainers()
+crm_trainer_dropdown_select($name, $current = NULL, $exclude = NULL, $include = NULL)//replaces crm_trainer_dropdown_list in 2.1 
 
 */
 
@@ -25,6 +24,120 @@ add_action( 'admin_post_crm_payroll_class_invoices', 'crm_payroll_class_invoices
 add_action( 'admin_post_crm_payroll_add_invoices', 'crm_payroll_add_invoices' );
 add_action( 'admin_post_crm_payroll_invoices_paid', 'crm_payroll_invoices_paid' );
 add_action( 'admin_post_crm_update_staff_meta', 'crm_update_staff_meta' );
+
+
+function crm_update_trainer_dropdown($type, $id, $trainers, $include = NULL){//type,$trainers passed as array
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">Trainers: <?php
+	if($trainers != NULL){
+		$i=1;
+		foreach($trainers as $trainer){
+			$name = "tr".$i;
+			crm_trainer_dropdown_select($name, $trainer, $trainers, $include);
+			$i++;
+		}?><input type="hidden" name="count" value="<?php echo $i; ?>"><?php	
+	}else{
+		crm_trainer_dropdown_select("tr1");
+		crm_trainer_dropdown_select("tr2");
+	}	
+	if($type == "class"){
+		?><input type="hidden" name="class_type" value="class">
+		<input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm2&class=<?php echo $id; ?>"><?php
+	}elseif($type == "booking"){
+		?><input type="hidden" name="class_type" value="booking"><?php 
+		?><input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm4&tab=booking_details&booking=<?php echo $id; ?>"><?php
+	}
+	?><input type="hidden" name="id" value="<?php echo $id; ?>">
+	<input type="hidden" name="action" value="update_trainers">
+	<input type='submit' value='Update Trainers'>
+	</form><?php
+}
+
+function crm_trainer_dropdown_select($name, $current = NULL, $exclude = NULL, $include = NULL){
+	global $wpdb;
+	echo "<select name='".$name."''>";
+		if($current != NULL){
+			$name = ($current >=1) ? $wpdb->get_var("SELECT display_name FROM {$wpdb->prefix}users WHERE ID = '$current'") : "No trainer";
+			echo "<option value='".$current."'>".$name."</option><option value=''>*****</option>";
+		}
+		echo "<option value='0'>No trainer</option>";
+		$exclude = ($exclude != NULL) ? $exclude : array();
+		$include = ($include != NULL) ? $include : NULL;
+		$args = array('role__in' => array('shop_manager', 'author', 'administrator'),);
+		$users = get_users( $args );
+		foreach ($users as $user) {
+			if($include != NULL && !in_array($user->ID, $include)){
+			}elseif(!in_array($user->ID, $exclude)){
+				echo '<option value="' .$user->ID .'">' .$user->display_name .'</option>';
+			}
+		}	
+	echo "</select>";
+}
+
+function crm_update_trainers(){
+	global $wpdb;
+	$trainers = array();
+	if(isset($_POST['tr1'])){$trainers[] = $_POST['tr1'];}
+	if(isset($_POST['tr2'])){$trainers[] = $_POST['tr2'];}
+	if($_POST['class_type'] == "class"){
+		$table = $wpdb->prefix.'crm_class_list';
+		$where = array('list_id' => $_POST['id']);
+		$data = array('trainers' => serialize($trainers));
+	}elseif($_POST['class_type'] == "booking"){
+		$table = $wpdb->prefix.'crm_booking_meta';
+		$where = array('meta_key' => 'trainers', 'avail_id' => $_POST['id']);
+		$data = array('meta_value' => serialize($trainers));
+		//Add to roster?
+	}else{
+		wp_redirect( get_site_url() ); 
+		exit;
+	}
+
+	$result = $wpdb->update( $table, $data, $where);
+	$message = ($result) ? "success" : "failure";
+	$url = get_site_url().$_POST['url']."&message=".$message;
+	wp_redirect( $url ); 
+	exit;
+}
+
+
+
+function akimbo_crm_manage_payroll(){
+	global $wpdb;
+	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
+	$crm_date = crm_date_setter_week($date);
+	echo "<h4>Payslip period: ".date("l jS M", strtotime($crm_date['week_start']))." - ".date("l jS M", strtotime($crm_date['week_end']));
+	echo "<br/>Payment date: ".date("l jS M", strtotime('thursday next week', strtotime($date)))."</h4>";
+	crm_date_selector("akimbo-crm3", "payroll");
+
+	$payroll = new Akimbo_Crm_Payroll($crm_date['week_start'], $crm_date['week_end']);
+	$payroll->display_items();
+	echo "<br/><hr>";
+	if(current_user_can('manage_options')){
+		//var_dump($payroll->get_items());
+		export_payroll_csv_file($payroll->get_items());
+		echo "<br/><br/><a href='https://quickbooks.intuit.com/au/quickbooks-login/' target='_blank'><button>Log In to Quickbooks</button></a>";
+	}
+}
+
+function akimbo_crm_roster(){
+	global $wpdb;
+	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
+	$crm_date = crm_date_setter_week($date);
+	echo "<h4>Week Starting: ".date("D jS M, Y", strtotime($crm_date['week_start']))."</h4>";
+	crm_date_selector("akimbo-crm", "roster");
+
+	$payroll = new Akimbo_Crm_Payroll($crm_date['week_start'], $crm_date['week_end']);
+	$payroll->display_items();
+	$message = "<br/><hr><br/>Can't make a rostered shift? You can try to swap it in the trainer <a href='https://www.facebook.com/groups/863632663663310/'>Facebook group</a> or contact another staff member directly.<br/><hr><br/>";
+	echo apply_filters('akimbo_crm_manage_roster_message', $message);
+	if(current_user_can('manage_options')){
+		crm_roster_update();//add shifts
+		crm_roster_edit_button();//send update email
+		echo "<br/><hr><br/>";
+	}
+
+}
+
 
 function akimbo_crm_update_trainer_availabilities($user_id = NULL){
 	global $wpdb;
@@ -174,96 +287,6 @@ function akimbo_crm_staff_details(){
  */
 
 
-function crm_trainer_dropdown_list($exclude = NULL, $include = NULL){//array of user ids to exclude
-	/** Sample use: <select name="trainer"><option value="0">No trainer</option><?php crm_trainer_dropdown_list(); ?></select> **/
-	$exclude = ($exclude != NULL) ? $exclude : array();
-	$include = ($include != NULL) ? $include : NULL;
-	$args = array('role__in' => array('shop_manager', 'author', 'administrator'),);
-	$users = get_users( $args );
-	foreach ($users as $user) {
-		if($include != NULL && !in_array($user->ID, $include)){
-		}elseif(!in_array($user->ID, $exclude)){
-			echo '<option value="' .$user->ID .'">' .$user->display_name .'</option>';
-		}
-	}	
-}
-
-function crm_update_trainer_dropdown($type, $id, $trainers, $include = NULL){//type,$trainers passed as array
-	global $wpdb;
-	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php
-	echo "Trainers: ";
-
-	if($trainers != NULL){
-		$i=1;
-		foreach($trainers as $trainer){
-			$name = "tr".$i;
-			$$name = ($trainer >= 1) ? $wpdb->get_var("SELECT display_name FROM {$wpdb->prefix}users WHERE ID = '$trainer'") : "No trainer";
-
-			?><select name="<?php echo $name; ?>"><option value="<?php echo $trainer; ?>"><?php echo $$name; ?></option><option value="">*****</option><option value="0">No trainer</option>
-			<?php crm_trainer_dropdown_list($trainers, $include); 
-			if($include != NULL){ ?><option value="">*****</option><?php crm_trainer_dropdown_list();}
-			?>
-			</select><input type="hidden" name="count" value="<?php echo $i; ?>"><?php
-			$i++;
-		}	
-	}else{
-		?><select name="tr1"><option value="0">No trainer</option><?php crm_trainer_dropdown_list(NULL, $availabilities); ?></select><?php
-		?><select name="tr2"><option value="0">No trainer</option><?php crm_trainer_dropdown_list(NULL, $availabilities); ?></select><?php
-	}	
-	if($type == "class"){
-		?><input type="hidden" name="class_type" value="class">
-		<input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm2&class=<?php echo $id; ?>"><?php
-	}elseif($type == "booking"){
-		?><input type="hidden" name="class_type" value="booking"><?php 
-		?><input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm4&tab=booking_details&booking=<?php echo $id; ?>"><?php
-	}
-	?><input type="hidden" name="id" value="<?php echo $id; ?>">
-	<input type="hidden" name="action" value="update_trainers">
-	<input type='submit' value='Update Trainers'>
-	</form><?php
-}
-
-function crm_update_trainers(){
-	global $wpdb;
-	$trainers = array();
-	if(isset($_POST['tr1'])){$trainers[] = $_POST['tr1'];}
-	if(isset($_POST['tr2'])){$trainers[] = $_POST['tr2'];}
-	if($_POST['class_type'] == "class"){
-		$table = $wpdb->prefix.'crm_class_list';
-		$where = array('list_id' => $_POST['id']);
-		$data = array('trainers' => serialize($trainers));
-	}elseif($_POST['class_type'] == "booking"){
-		$table = $wpdb->prefix.'crm_booking_meta';
-		$where = array('meta_key' => 'trainers', 'avail_id' => $_POST['id']);
-		$data = array('meta_value' => serialize($trainers));
-		//Add to roster?
-	}else{
-		wp_redirect( get_site_url() ); 
-		exit;
-	}
-
-	$result = $wpdb->update( $table, $data, $where);
-	$message = ($result) ? "success" : "failure";
-	$url = get_site_url().$_POST['url']."&message=".$message;
-	wp_redirect( $url ); 
-	exit;
-}
-
-/*function crm_update_party_trainers(){
-	global $wpdb;
-	$table = $wpdb->prefix.'crm_bookings';
-	$where = array('book_ref' => $_POST['id']);
-	$trainers = array();
-	$data = array('book_trainer_id' => $_POST['trainer1'], 'book_trainer2_id' => $_POST['trainer2']);
-	$wpdb->update( $table, $data, $where);
-	
-	$site = get_site_url();
-	$url = $site."/wp-admin/admin.php?page=akimbo-crm4&booking=".$_POST['id'];
-	wp_redirect( $url ); 
-	exit;
-}*/
-
-
 
 
 function crm_update_staff_meta(){
@@ -286,6 +309,19 @@ function crm_update_staff_meta(){
 	exit;
 }
 
+
+function crm_roster_update(){
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+		<td><select name="type"><option value="admin">Admin</option><option value="party">Party</option><option value="setup">Setup</option><option value="workshop">Workshop</option></select>
+		</td><td><?php crm_trainer_dropdown_select("trainer"); ?>
+		</td><td> Start:<input name="start_time" type="datetime-local">
+		</td><td><input name="duration" type="number" value="60"> mins
+		</td><td><input name="location" type="text" value="Circus Akimbo - Hornsby">
+		<input type="hidden" name="action" value="crm_add_to_timesheet">
+		</td><td><button>Add To Roster</button></td></tr></table>
+		</form></table>
+	<?php
+}
 
 function crm_add_to_timesheet(){
 	global $wpdb;
@@ -379,9 +415,9 @@ function crm_email_trainer_payslip(){
 	}
 }
 
-function crm_roster_edit_button(){
+function crm_roster_edit_button(){//send email
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-	Notify roster change: <select name="trainer"><?php crm_trainer_dropdown_list(); ?></select>
+	Notify roster change: <?php crm_trainer_dropdown_select("trainer"); ?>
 	Week starting <input type="text" name="date" placeholder="e.g. 2019-04-29">
 	<input type="hidden" name="action" value="crm_email_trainer_roster_edit">
 	<input type="submit" value="Send email"></form><?php

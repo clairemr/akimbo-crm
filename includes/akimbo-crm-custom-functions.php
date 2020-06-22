@@ -19,14 +19,43 @@ crm_get_user_email_list($user_list): get user emails from an array of user ids
 
 
 akimbo_crm_redirect(): use at the end of admin posts to direct back to the right page. Values home, classes, bookings, business or custom urls may be passed
-get_all_orders_items_from_a_product_variation( $variation_id )
-get_all_orders_from_a_product_id( $product_id ){
+
 
 crm_weeks_remaining($item_id): returns weeks, weeks_used, qty, total and remaining for a given item id
 
 */
 
 add_action( 'admin_post_crm_simple_delete_button_process', 'crm_simple_delete_button_process' );
+add_action( 'admin_post_update_mailchimp_child', 'akimbo_crm_update_mailchimp_child' );
+
+
+add_shortcode('termDates', 'akimbo_term_dates'); //[termDates]
+add_shortcode('nextSemester', 'akimbo_next_semester'); //[nextSemester]
+
+
+
+
+
+
+function crm_dropdown_selector($type, $page, $tab = NULL){//, $value = "View"
+	?><form action="admin.php" method="get">
+	<input type="hidden" name="page" value="<?php echo $page; ?>" /><?php 
+	if($tab != NULL){
+		echo "<input type='hidden' name='tab' value='".$tab."' />";
+	}
+	switch ($type) {
+	    case "students":  	
+	    	echo "Student: ";
+	    	crm_student_dropdown("student"); 
+	    break;
+	    case "users": 
+	    	echo "User: ";
+	    	akimbo_user_dropdown("user"); 
+	    break;
+	}
+	?><input type="submit" value="View"></form><?php
+}
+
 
 function crm_simple_delete_button($table, $data_id, $data, $redirect, $display = NULL){// "crm_class_list'", "list_id", "123", "/wp-admin/admin.php?page=akimbo-crm2"
 	$display = ($display != NULL) ? $display : "Delete";
@@ -121,12 +150,7 @@ function crm_simple_update_table($table, $data, $where, $redirect){//'crm_studen
 	exit;
 }*/
 
-add_shortcode('simpleTimetable', 'user_timetable_simple'); //[simpleTimetable age='adults']
-add_shortcode('trialTimetable', 'user_timetable_trial'); //[trialTimetable age='adults']
-add_shortcode('userList', 'akimbo_user_dropdown'); //[userList role='all', 'staff' or 'trainers']
-add_shortcode('RAFreferralCode', 'akimbo_raf_referral_code'); //[RAFreferralCode]
-add_shortcode('termDates', 'akimbo_term_dates'); //[termDates]
-add_shortcode('nextSemester', 'akimbo_next_semester'); //[nextSemester]
+
 
 //Mailchimp integration
 
@@ -233,22 +257,7 @@ function crm_nav_tab($page, $tab, $title, $active_tab){
 
 
 
-function crm_dropdown_selector($type, $page, $tab = NULL){//, $value = "View"
-	?><form action="admin.php" method="get">
-	<input type="hidden" name="page" value="<?php echo $page; ?>" /><?php 
-	if($tab != NULL){
-		echo "<input type='hidden' name='tab' value='".$tab."' />";
-	}
-	switch ($type) {
-	    case "students":  	
-	    	?>Student: <select name= 'student'><?php crm_student_dropdown_values(); ?></select><?php
-	    break;
-	    case "users": 
-	    	?>User: <select name= 'user'><?php akimbo_user_dropdown("all"); ?></select><?php //dropdown in shortcodes
-	    break;
-	}
-	?><input type="submit" value="View"></form><?php
-}
+
 
 function crm_weeks_remaining($item_id){
 	global $wpdb;
@@ -268,126 +277,11 @@ function crm_weeks_remaining($item_id){
 	return $remaining;
 }
 
-function user_timetable_simple($atts){	
-	
-	global $wpdb;
-	global $post;
-	
-	extract(shortcode_atts(array('age' => '', 'length' => '', 'date' => ''), $atts));
-	if(!$age){$age="all";}
-	if(!$length){$length="14";}
-	if(!$date){$today = current_time('Y-m-d g:ia');}else{$today=$date;}
-	$content = NULL;
-	$user_id = get_current_user_id();
-	$user = ($user_id >= 1) ? new Akimbo_Crm_User($user_id) : NULL;
-	$student_id = ($user != NULL) ? $user->get_user_student_id() : NULL;
-	if($student_id != NULL){
-		$student = new Akimbo_Crm_Student($student_id);
-		$content .= "<i>Student: ".$student->first_name()."</i><br/>";
-	}else{$student = NULL;}
-	$content .= crm_bookable_timetable($age, $length, $user, $student);
-	
-	
-	/*if($age == "all"){
-		$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' ORDER BY session_date ASC LIMIT $length");
-	} else{
-		$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' AND age_slug = '$age' ORDER BY session_date ASC LIMIT $length");
-	}
-	if(!$classes){$content = "<p align='center'><h2>No upcoming classes have been scheduled!</h2> Please contact us for more information about ".$age." classes</p>";
-	}else{
-		$content = "<table width='100%'><tr><h2><th>Class Name</th><th>Time</th><th>Venue</th><th></th></h2></tr>";
-		foreach ( $classes as $class ) {
-			$product_id = $class->prod_id;
-			$class_date = date("g:ia, l jS M", strtotime($class->session_date));
-			//$class_list_id = $class->list_id;
-			$content .= "<tr><td>".$class->class_title."</td><td>".$class_date."</td><td>".$class->location."</td><td><a href='".get_permalink($product_id)."'><button>Sign Up</button></a></td></tr>";
-		}
-		$content .= "</table>";//end class list
-	}	*/
-	return $content;
-}
 
-function akimbo_user_dropdown($var){ 
-	global $wpdb;
-	extract(shortcode_atts(array('role' => ''), $var));
-	if(!$role){$role = "all";}
-	if($role == "trainers"){$args = array('role__in' => array('shop_manager', 'author'),);
-		$users = get_users( $args );
-	} elseif($role=="staff"){$args = array('role__in' => array('shop_manager', 'author'),);
-		$users = get_users( $args );//includes admin staff
-	} else{
-		$users = get_users();//$wpdb->get_results("SELECT * FROM {$wpdb->prefix}users ORDER BY display_name");
-	}
-	?><option value="1">Circus Akimbo</option><?php
-	foreach ($users as $user){ ?>
-		<option value="<?php echo $user->ID;?>"><?php echo $user->display_name;?></option><?php 
-	}
-	/** Sample use: <select name="trainer"><option value="0">No trainer</option>
-		<?php akimbo_user_dropdown("trainers"); ?></select> **/
-}
 
-function user_timetable_trial($atts){	
-	$today = current_time('Y-m-d g:ia');
-	global $wpdb;
-	global $post;
-	
-	extract(shortcode_atts(array('age' => '', 'length' => ''), $atts));
-	
-	if(!$age){$age="all";}
-	if(!$length){$length="18";}
-	if($age == "all"){
-		$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' AND age_slug !='private' ORDER BY session_date ASC LIMIT $length");
-	} else{
-		$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' AND age_slug = '$age' ORDER BY session_date ASC LIMIT $length");
-	}
-	if(!$classes){$content = "<p align='center'><h2>No upcoming classes have been scheduled!</h2> Please contact us for more information about ".$age." classes</p>";
-	}else{
-		$content = "<table width='100%'><tr><h2><th>Class Name</th><th>Time</th><th>Venue</th><th></th></h2></tr>";
-		foreach ( $classes as $class ) {
-			//$product_id = $class->prod_id;
-			$product_cat = $class->age_slug;
-			$class_date = date("g:ia, l jS M", strtotime($class->session_date));
-			//$class_list_id = $class->list_id;
-			if($product_cat == "adults"){
-				$content .= "<tr><td>".$class->class_title."</td><td>".$class_date."</td><td>".$class->location."</td><td><a href='".get_permalink(1499)."'><button>Sign Up</button></a></td></tr>";
-			}elseif($product_cat == "playgroup"){
-				$content .= "<tr><td>".$class->class_title."</td><td>".$class_date."</td><td>".$class->location."</td><td><a href='".get_permalink(1536)."'><button>Sign Up</button></a></td></tr>";
-			}else{
-							$content .= "<tr><td>".$class->class_title."</td><td>".$class_date."</td><td>".$class->location."</td><td><a href='".get_permalink(2046)."'><button>Sign Up</button></a></td></tr>";
-			}
 
-		}
-		$content .= "</table>";//end class list
-	}	
-	return $content;
-}
 
-function akimbo_raf_referral_code($atts){//$page = null
-	//based on plugins/refer-a-friend-for-woocommerce-by-wpgens/public/class-gens-raf-public.php 
-	extract(shortcode_atts(array('page' => ''), $atts));
-	
-	if(!$page){$url = get_site_url();}else{
-		$url = get_site_url().$page;
-	}
-	/*if(isset($page)){
-		$url = get_site_url().$page;
-	}else{
-		$url = get_site_url();
-	}
-	$url = get_site_url();*/
-	$user_id = get_current_user_id();
-	
-	if ( !$user_id ) {
-	} else {
-		$referral_id = get_user_meta($user_id, "gens_referral_id", true);
-	}
-	
-	
-	$refLink = esc_url(add_query_arg( 'raf', $referral_id, $url )); 
-	$content = "<a href='".$refLink."'>".$refLink."</a>";
 
-	return $content;
-}
 
 function akimbo_term_dates($format = 'echo', $date = NULL){
 	global $wpdb;

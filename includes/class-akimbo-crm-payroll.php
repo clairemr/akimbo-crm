@@ -24,7 +24,8 @@ class Akimbo_Crm_Payroll{
 		$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$start_date' AND session_date <= '$end_date' ORDER BY session_date ASC");
 		//session_date, trainers, duration
 		$bookings = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_availability LEFT JOIN {$wpdb->prefix}crm_booking_meta ON {$wpdb->prefix}crm_availability.avail_id = {$wpdb->prefix}crm_booking_meta.avail_id WHERE {$wpdb->prefix}crm_booking_meta.meta_key = 'trainers' AND {$wpdb->prefix}crm_availability.availability = false AND {$wpdb->prefix}crm_availability.session_date >= '$start_date' AND {$wpdb->prefix}crm_availability.session_date <= '$end_date' ORDER BY {$wpdb->prefix}crm_availability.session_date ASC");
-		$this->payroll_items = array_merge($classes, $bookings);
+		$shifts = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_roster WHERE start_time >= '$start_date' AND start_time <= '$end_date' ORDER BY start_time ASC");
+		$this->payroll_items = array_merge($classes, $bookings, $shifts);
 
 	}
 
@@ -38,7 +39,11 @@ class Akimbo_Crm_Payroll{
 		$payroll_trainers = akimbo_crm_trainer_names();
 		if($this->payroll_items != NULL){
 			echo "<table width='80%'><tr bgcolor = '#33ccff'><th width='40%'><strong>Class</strong></th><th width='30%'><strong>Trainer</strong></th><th>Duration</th></tr>";
+			
 			foreach($this->payroll_items as $item){
+				if(isset($item->shift_type)){
+					echo "<tr><td align='right'>".ucwords($item->shift_type)." , ".date('h:ia l jS M', strtotime($item->start_time))."</td><td>".$payroll_trainers[$item->trainer_id]."</td><td>".$item->duration." mins</td></tr>";
+				}
 				$line_trainers = (isset($item->trainers)) ? unserialize($item->trainers) : unserialize($item->meta_value);
 				$i = 1;	
 				foreach($line_trainers as $trainer){

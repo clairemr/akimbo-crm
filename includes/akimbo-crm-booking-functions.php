@@ -238,11 +238,11 @@ function CRM_add_custom_order_line_item_meta($item, $cart_item_key, $values, $or
  * 
  */
 function crm_hide_booking_quantity() {
-	global $post;
-	if ($post->ID == '1470' || $post->ID == '2968'){
-		?>
-		<style type="text/css">.quantity, .buttons_added { width:0; height:0; display: none; visibility: hidden; }</style>
-		<?php
+	if(is_product()){
+		global $post;
+		if ($post->ID == '1470' || $post->ID == '2968'){
+			?><style type="text/css">.quantity, .buttons_added { width:0; height:0; display: none; visibility: hidden; }</style><?php
+		}
 	}
 }
 

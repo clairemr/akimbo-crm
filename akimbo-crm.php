@@ -1,15 +1,66 @@
 <?php
 /**
- * Plugin Name: Akimbo CRM 2.0
+ * Plugin Name: Akimbo CRM
  * Plugin URI: #
- * Version: 2.0
+ * Version: 2.1
  * Author: Circus Akimbo
  * Author URI: https://circusakimbo.com.au
- * Description: A simple CRM system for WordPress
+ * Description: A simple CRM system for WordPress and Woocommerce
  * License: GPL2
  */
 
 class AkimboCRM {
+	global $wpdb;
+	global $akimbo_crm_db_version;
+	$akimbo_crm_db_version = '2.1';
+	register_activation_hook( __FILE__, 'akimbo_crm_create_db_tables' );
+
+	function akimbo_crm_create_db_tables(){
+		global $wpdb;
+		global $akimbo_crm_db_version;
+		
+		$installed_ver = get_option( "akimbo_crm_db_version" );
+		if($installed_ver != $akimbo_crm_db_version){
+			$charset_collate = $wpdb->get_charset_collate();
+			require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+
+			$table_name = $wpdb->prefix . "crm_students"; 
+			$sql = "CREATE TABLE $table_name (
+			student_id int(11) NOT NULL AUTO_INCREMENT,
+			student_rel tinytext,
+			student_firstname tinytext NOT NULL,
+			student_lastname tinytext,
+			student_dob datetime DEFAULT '0000-00-00 00:00:00',
+			student_startdate datetime DEFAULT '0000-00-00 00:00:00',
+			student_waiver datetime DEFAULT '0000-00-00 00:00:00',
+			student_notes text,
+			marketing tinytext,
+			PRIMARY KEY  (student_id)
+			) $charset_collate;";
+			dbDelta( $sql );
+
+			$table_name = $wpdb->prefix . "crm_roster"; 
+			$sql = "CREATE TABLE $table_name (
+			roster_id int(11) NOT NULL AUTO_INCREMENT,
+			start_time datetime DEFAULT '0000-00-00 00:00:00',
+			roster_id int(11),
+			duration int(11),
+			shift_type tinytext,
+			location tinytext,
+			PRIMARY KEY  (roster_id)
+			) $charset_collate;";
+			dbDelta( $sql );
+			
+			/** Update db version & success message */
+			add_option( 'akimbo_crm_db_version', $akimbo_crm_db_version );
+			$update_message = "Plugin successfully updated";
+		}
+		
+		
+
+		
+	}
+	
 	/**
 	*Constructor. Called when plugin is initialised
 	*/
@@ -17,7 +68,16 @@ class AkimboCRM {
 		add_action('admin_menu', array(&$this, 'akimbo_crm_admin_menu'));
 		$this->includes();
 		add_action('admin_init', array(&$this, 'akimbo_crm_register_settings'));
+		add_action( 'plugins_loaded', 'akimbo_crm_update_db_check' );
+		
 	}
+	function akimbo_crm_update_db_check() {
+		global $akimbo_crm_db_version;
+		if ( get_site_option( 'akimbo_crm_db_version' ) != $akimbo_crm_db_version ) {
+			akimbo_crm_create_db_tables();
+		}
+	}
+	
 	
 	function akimbo_crm_admin_menu(){//Title, admin panel label, user capabilities, slug, function callback
 			$parent_slug = "akimbo-crm";
@@ -43,7 +103,7 @@ class AkimboCRM {
 		switch ($active_tab) {
 		    case "home": echo apply_filters('akimbo_crm_admin_home', akimbo_crm_admin_home_page());
 		    break;
-		    case "details": include 'includes/includes/student_details.php';
+		    case "details": echo apply_filters('akimbo_crm_student_details', akimbo_crm_student_details());
 		    break;
 		    case "roster": apply_filters('akimbo_crm_admin_roster', akimbo_crm_roster()); 
 		    echo apply_filters('akimbo_crm_admin_home_staff_details', akimbo_crm_staff_details());
@@ -79,6 +139,7 @@ class AkimboCRM {
 				echo crm_nav_tab($page, "classes", "Classes", $active_tab);
 				echo crm_nav_tab($page, "schedule", "Scheduling", $active_tab);
 				echo crm_nav_tab($page, "enrolment", "Enrolment Troubleshooting", $active_tab);
+				echo crm_nav_tab($page, "payments", "Late Payments", $active_tab);
 		echo "</h2>";
 		switch ($active_tab) {
 		    case "classes": echo apply_filters('akimbo_crm_admin_manage_classes', akimbo_crm_manage_classes());
@@ -86,8 +147,10 @@ class AkimboCRM {
 		    break;
 		    case "schedule": echo apply_filters('akimbo_crm_admin_manage_classes_schedule', akimbo_crm_manage_schedules());	
 		    break;
-		    case "enrolment": echo apply_filters('akimbo_crm_admin_manage_classes_enrolments', akimbo_crm_enrolment_issues());//
+		    case "enrolment": echo apply_filters('akimbo_crm_admin_manage_classes_enrolments', akimbo_crm_enrolment_issues());
 		    break;
+		    case "payments": apply_filters('akimbo_crm3_business details_payments', akimbo_crm_unpaid_students());
+			break;
 		    default:
 		}
 	}
@@ -103,14 +166,11 @@ class AkimboCRM {
 				$active_tab = isset( $_GET[ 'tab' ] ) ? $_GET[ 'tab' ] : 'statistics'; 
 				echo crm_nav_tab($page, "statistics", "Student Statistics", $active_tab);
 				echo crm_nav_tab($page, "business", "Business Details", $active_tab);
-				echo crm_nav_tab($page, "payments", "Late Payments", $active_tab);
 				echo crm_nav_tab($page, "payroll", "Payroll", $active_tab);
 			echo "</h2>";
 
 			switch ($active_tab) {
 			    case "business": apply_filters('akimbo_crm3_business details', akimbo_crm_business_details());//test info in akimbo-crm 2.0 functions
-			    break;
-			    case "payments": apply_filters('akimbo_crm3_business details_payments', akimbo_crm_unpaid_students());
 			    break;
 			    case "statistics": include 'includes/includes/student_statistics.php';  	
 			    break;
@@ -201,10 +261,12 @@ class AkimboCRM {
 		*/
 		include_once 'includes/akimbo-crm-account-functions.php';
 		include_once 'includes/akimbo-crm-admin-functions.php';
+		include_once 'includes/akimbo-crm-badge-functions.php';
 		include_once 'includes/akimbo-crm-booking-functions.php';
 		include_once 'includes/akimbo-crm-class-functions.php';
 		include_once 'includes/akimbo-crm-custom-functions.php';
 		include_once 'includes/akimbo-crm-order-functions.php';
+		include_once 'includes/akimbo-crm-scheduling-functions.php';
 		include_once 'includes/akimbo-crm-staff-functions.php';
 		include_once 'includes/akimbo-crm-student-functions.php';
 		include_once 'includes/akimbo-crm-user-functions.php';

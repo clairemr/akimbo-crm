@@ -18,15 +18,13 @@ crm_get_student_email_list($student_list, $format){//user emails from student id
 */
 add_action( 'admin_post_crm_add_student', 'crm_add_student' );
 add_action( 'admin_post_nopriv_crm_add_student', 'crm_add_student' );
-//possibly outdated function? Moved from enrolment functions
-add_action( 'admin_post_adult_add_enrolment', 'adult_enrolment_form' );
+
 
 add_action( 'admin_post_update_casual_enrolment', 'update_casual_enrolment' );
 add_action( 'admin_post_admin_manual_enrolment', 'akimbo_crm_admin_manual_enrolment' );
 add_action( 'admin_post_kids_enrolment_confirmation', 'kids_class_enrolment' );
 
-add_action( 'admin_post_casual_unenrol_button', 'crm_casual_unenrolment' );
-add_action( 'admin_post_enrolment_unenrol_button', 'crm_enrolment_unenrol_process' );
+add_action( 'admin_post_unenrol_button', 'crm_unenrolment_process' );
 
 add_action( 'admin_post_crm_swap_student', 'akimbo_crm_swap_student' );//passes new class_id & att_id
 //swap variation id <-- might be an order function
@@ -37,22 +35,118 @@ add_action( 'admin_post_admin_manual_unpaid_unenrolment', 'admin_manual_unenrolm
 
 add_action( 'admin_post_admin_assign_order_id', 'admin_assign_order_id' );
 
+add_action( 'admin_post_crm_merge_duplicate_students', 'crm_merge_duplicate_students' );
+
+function crm_find_duplicate_students($url = NULL){
+	//Future update: also find students where user is the same and first name is the same
+	global $wpdb;
+	echo "<h2>Duplicate Students:</h2>";
+	$url = ($url == NULL) ? akimbo_crm_permalinks("students") : $url;
+	$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_students ORDER BY user_id");
+	$distinct_students = array();
+	$user_students = array();
+	$user_id = 0;
+	$duplicates = false;
+	foreach($students as $student){
+		$student_user = $student->user_id;
+		$key = $student->student_firstname." ".$student->student_lastname;
+		if (isset($distinct_students[$key]) || isset($user_students[$student->student_firstname]) && $student->user_id == $user_id) { // && $arr['key'] == 'value'
+			$duplicates = true;
+			$comparison_id = (isset($distinct_students[$key])) ? $distinct_students[$key] : $user_students[$student->student_firstname];
+			echo "<table><tr><th>Student ".$comparison_id."</th><th>Student ".$student->student_id."</th></tr>";
+			echo "<tr><td>";
+			update_student_details_form($comparison_id, $url, 1);
+			echo "</td><td>";
+		    update_student_details_form($student->student_id, $url, 1);
+		    echo "</td></tr><tr><td>OR ";
+		    crm_merge_duplicate_students_button($student->student_id, $comparison_id);
+		    echo "</td><td>OR ";
+		    crm_merge_duplicate_students_button($comparison_id, $student->student_id);
+		    echo "</td></tr></table><br/><hr><br/>";
+		    $student1 = new Akimbo_Crm_Student($student->student_id);
+			$student2 = new Akimbo_Crm_Student($comparison_id);
+		}else{
+			$distinct_students[$key] = $student->student_id;
+			$user_students[$student->student_firstname] = $student->student_id;
+		}
+		$user_id = $student->user_id;
+	}
+	if($duplicates == false){echo "No duplicates found";}
+}
+
+function crm_merge_duplicate_students_button($student1, $student2){//discard $student2
+	global $wpdb;
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+	<input type="hidden" name="student1" value="<?php echo $student1; ?>">
+	<input type="hidden" name="student2" value="<?php echo $student2; ?>">
+	<input type="hidden" name="action" value="crm_merge_duplicate_students">
+	<input type='submit' value='Delete Duplicate'></form><?php
+}
+
+function crm_merge_duplicate_students(){
+	global $wpdb;
+	$student1 = new Akimbo_Crm_Student($_POST['student1']);
+	$student2 = new Akimbo_Crm_Student($_POST['student2']);
+	
+	/* Update attendance table */
+	$classes = $student2->get_classes();
+	if($classes != NULL){
+		$table = $wpdb->prefix.'crm_attendance';
+		$where = array ('student_id' => $student2->get_id());
+		foreach($classes as $class){
+			$data = array(
+				'student_id' => $student1->get_id(), 
+				'user_id' => $student1->get_user_id(), 
+				'student_name' => $student1->full_name(),
+			);
+			$wpdb->update( $table, $data, $where);
+		}
+	}
+
+	/* Compare student details table */
+	$student1_info = $student1->get_student_info();
+	$student2_info = $student2->get_student_info();
+	$dob = ($student1_info->student_dob <= 1) ? $student2_info->student_dob : $student1_info->student_dob;
+	$start = ($student1_info->student_startdate >= $student2_info->student_startdate) ? $student1_info->student_startdate : $student2_info->student_startdate;
+	$waiver = ($student1_info->student_waiver >= $student2_info->student_waiver) ? $student1_info->student_waiver : $student2_info->student_waiver;
+	$table = $wpdb->prefix.'crm_students';
+	$where = array ('student_id' => $student1->get_id());
+	$data = array(
+		'student_dob' => $dob, 
+		'student_waiver' => $waiver,
+		'student_startdate' => $start, 
+	);
+	$data['student_notes'] = ($student1_info->student_notes == NULL || $student2_info->student_notes != NULL) ? $student2_info->student_notes : $student1_info->student_notes;
+	$data['marketing'] = ($student1_info->marketing == NULL || $student2_info->marketing != NULL) ? $student2_info->marketing : $student1_info->marketing;
+	$wpdb->update( $table, $data, $where);
+
+	/* Delete student 2*/
+	$result = $wpdb->delete( $table, array( 
+		'student_id' => $_POST['student2'],) 
+	);
+
+	wp_redirect($student1->student_admin_link()."&message=success" ); 
+	exit;
+}
+
 /*
 *
 * crm_student_dropdown(): dropdown list of all students, ordered by first name. Value = student id
 *
 */
-function crm_student_dropdown_values($exclude = NULL){//takes array of ids
+function crm_student_dropdown($name = "student", $exclude = NULL){//takes array of ids
 	global $wpdb;
 	$exclude = ($exclude != NULL) ? $exclude : array();
-	?><option value="0"><i>Select student</i></option><?php
+	echo "<select name= '".$name."'><option value='0'><i>Select student</i></option>";
 	$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_students ORDER BY student_firstname");
 	foreach ($students as $student){ 
 		if(in_array($student->student_id, $exclude)){}else{
 			?><option value="<?php echo $student->student_id;?>"><?php echo $student->student_firstname." ".$student->student_lastname;?></option><?php 
 		}
 	}
+	echo "</select>";
 }
+
 
 function akimbo_crm_get_students($age = NULL, $status = 'all', $semester_slug = NULL){//kids, all/current/not_returning
 	global $wpdb;
@@ -90,6 +184,10 @@ function update_student_details_form($id = NULL, $url = NULL, $admin = NULL){//$
 	if($id != NULL){
 		$student = new Akimbo_Crm_Student($id);
 		$info = $student->get_student_info();
+		echo "<h3>".$student->full_name()."</h3>";
+		echo "Contact number: ".$student->contact_phone();
+	}else{
+		echo "<h3>Add New Student</h3>";
 	}
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
 	<br/>Student first name: <input type="text" name="student_firstname" <?php if($id != NULL){ ?> value="<?php echo $info->student_firstname;?>" <?php } ?> required>
@@ -101,28 +199,23 @@ function update_student_details_form($id = NULL, $url = NULL, $admin = NULL){//$
 	<br/>Where did you hear about us?
 	<br/><input type="text" name="marketing" <?php if($id != NULL){ ?> value="<?php echo $info->marketing;?>" <?php } ?> >
 	<?php if($id != NULL){ ?> <input type="hidden" name="update" value="1"><input type="hidden" name="student_id" value="<?php echo $info->student_id; ?>"> <?php } 
+	if(is_user_logged_in()){
 		if(current_user_can( 'manage_options' )){
-			?><br/>Managing User: <select name="user_id"> <?php
-			if($id != NULL){
-				$user_info = get_userdata($info->user_id);
-				$user_name = $user_info->display_name;//Get username from id
-				?><option value="<?php echo $info->user_id; ?> "><?php echo $user_name; ?></option><?php 
-			}
-			akimbo_user_dropdown("all");?></select> <?php 
-			//echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=details&user=".$info->user_id."'>View Managing User</a>";
-			if($id != NULL){echo $student->user_admin_link("View Managing User");}
-		}else{ 
-			$user_id = (is_user_logged_in()) ? get_current_user_id() : 1;
-			?> <input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>"> <?php 
+			echo "<br/>Managing User: ";
+			$user_id = ($id != NULL) ? $info->user_id : 1;
+			akimbo_user_dropdown("user_id", $user_id);
+			echo $student->user_admin_link("View Managing User");
+		}else{//not admin, use user id
+			?><input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>"> <?php
 		}
-
-	
+	}else{//not logged in, default 1
+		?><input type="hidden" name="user_id" value="1"> <?php
+	}
 	if($info->student_waiver >= 1){ 
 		echo "<small><br/>Waiver signed ".date("g:ia, l jS M Y", strtotime($info->student_waiver))."</small>";//don't show if already signed
 	} else{ //don't show for admin? //elseif(!current_user_can('manage_options'))
 		if($admin != NULL){
 			?><br/><b>Waiver Not Signed</b><?php
-			//if($id != NULL){$waiver = $student_edit->student_waiver;}else{$waiver=0;}
 		}else{
 			$time = current_time('Y-m-d H:ia');
 			?><br/><br/><b>Participation Release of Liability & Assumption of Risk Agreement</b>
@@ -143,8 +236,7 @@ function update_student_details_form($id = NULL, $url = NULL, $admin = NULL){//$
 
 	
 	if($url == NULL){//send back to enrolment page
-		$id = $wpdb->get_var("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_id DESC LIMIT 1 ") + 1;
-		$url = get_site_url()."/enrolment?student=".$id."&message=success";
+		$url = get_site_url()."/enrolment?";
 	}  ?>
 	<input type="hidden" name="referral_url" value="<?php echo $url; ?>">
 	<input type="hidden" name="action" value="crm_add_student">
@@ -181,6 +273,7 @@ function crm_add_student(){//values set on add_family_form.php
 			if($_POST['waiver']){$data += ['student_waiver' => $waiver];}
 			$data += ['user_id' => $user];
 			$wpdb->insert($table, $data);
+			$student_id = $wpdb->get_var("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_id DESC LIMIT 1 ");
 		} else { //update details
 			if($_POST['waiver']){//only update if shown, won't be posted if already submitted to avoid wiping waiver data on updates
 				$data += ['student_waiver' => $waiver,  'user_id' => $user, ];
@@ -195,9 +288,10 @@ function crm_add_student(){//values set on add_family_form.php
 			//}
 			$where = array ('student_id' => $_POST['student_id']);
 			$wpdb->update( $table, $data, $where);
+			$student_id = $_POST['student_id'];
 		}
 	
-	if($_POST['referral_url']){$url = $_POST['referral_url']."&message=success";}else{$url = get_permalink( get_option('woocommerce_myaccount_page_id') )."&message=success";}
+	if($_POST['referral_url']){$url = $_POST['referral_url']."&student=".$student_id."&message=success";}else{$url = get_permalink( get_option('woocommerce_myaccount_page_id') )."&message=success";}
 	wp_redirect( $url ); 
 	exit;
 }
@@ -213,7 +307,7 @@ function crm_casual_enrol_button($student, $class, $order, $url = NULL, $age = N
 	<input type="hidden" name="order" value="<?php echo $order; ?>">
 	<input type="hidden" name="student" value="<?php echo $student; ?>">
 	<input type="hidden" name="class" value="<?php echo $class; ?>">
-<input type="hidden" name="age" value="<?php echo $age; ?>">
+	<input type="hidden" name="age" value="<?php echo $age; ?>">
 	<?php // if($url != NULL){ <input type="hidden" name="url" value="<?php echo $url; "> <?php } ?>
 	<input type="hidden" name="action" value="update_casual_enrolment">
 	<input type="submit" value="Sign Up"></form><?php 
@@ -268,7 +362,9 @@ function update_casual_enrolment() {//values set on crm_dashboard.php, student, 
 		} else {$message = "success";
 			$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");//sessions_used
 			$meta_key = "sessions_used";
-			if($sessions_used <= 0){
+			$update = wc_get_order_item_meta($item_id, "sessions_used");
+			if(!isset($update)){
+			//$sessions_used <= 0
 				wc_add_order_item_meta($item_id, $meta_key, $meta_value);
 			} else {
 				wc_update_order_item_meta($item_id, $meta_key, $meta_value);
@@ -395,23 +491,200 @@ function kids_class_enrolment(){//matched orders, where item_id is given
 
 /**
  *
- * Casual unenrolment
+ * Unenrolment
  * 
  */
-function crm_student_unenrol_button($att_id){//used in dashboard
-	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-		<input type="hidden" name="att_id" value="<?php echo $att_id; ?>"> 
-		<input type="hidden" name="action" value="casual_unenrol_button">
-		<input type="submit" value="Unenrol">
+
+//Unenrol single student, with attendance ID provided
+function crm_student_unenrol_button($att_id, $class_type, $url = NULL){
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
+		if($url != NULL){echo "<input type='hidden' name='url' value='".$url."'>";}
+		if($class_type != NULL){echo "<input type='hidden' name='class_type' value='".$class_type."'>";}
+		?><input type="hidden" name="att_id" value="<?php echo $att_id; ?>"> 
+		<input type="hidden" name="action" value="unenrol_button">
+		<input type="submit" name="submit" value="Unenrol">
 	</form> <?php
 }
 
+//Student dropdown list with unenrolment button. Takes an array of student objects
+function crm_admin_unenrolment_button($class_id, $student_list, $class_type = "casual", $url = NULL){
+	global $wpdb;
+	$url = ($url != NULL) ? $url : "/wp-admin/admin.php?page=akimbo-crm2&class=".$class_id ;
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+	<select name= 'att_id'><option value="">Select student</option>
+	<?php foreach ($student_list as $student){ 
+		?><option value="<?php echo $student->att_id;?>"><?php echo $student->full_name(); ?></option><?php
+	} 
+
+	?>
+	</select> 
+	<input type="hidden" name="url" value="<?php echo $url; ?>">
+	<input type="hidden" name="class_type" value="<?php echo $class_type;?>">	
+	<input type="hidden" name="action" value="unenrol_button">
+	<input type="submit" name="submit" value="Unenrol">
+	</form><?php //<input type='submit' value='Late Cancel'> //Remove option - students are either given pass back or kept in class for record keeping purposes
+}
+
+function crm_unenrolment_process(){//early cancel
+	global $wpdb;
+	$att_id = $_POST['att_id'];
+	$attendance = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_attendance 
+		LEFT JOIN {$wpdb->prefix}crm_class_list ON {$wpdb->prefix}crm_attendance.class_list_id = {$wpdb->prefix}crm_class_list.list_id 
+		WHERE attendance_id = $att_id
+		LIMIT 1");
+	
+	//update CRM attendance
+	$table = $wpdb->prefix.'crm_attendance';
+	$result = $wpdb->delete( $table, array( 
+		'attendance_id' => $_POST['att_id'],) 
+	);
+
+	//redirect url
+	if(isset($_POST['url'])){
+		$url = get_site_url().$_POST['url'];
+	}elseif(isset($_POST['class_id'])){
+		$url = akimbo_crm_permalinks("classes", "link", NULL, array('class' => $_POST['class_id']));
+	}else {$url = get_permalink( wc_get_page_id( 'myaccount' ) );}
+
+	//return pass if ord_id >1 & not late cancelled session
+	if($_POST['submit'] != "Late Cancel"){//return pass
+		$item_id = $attendance->ord_id;
+	}
+	
+	//update order_itemmeta
+	if( FALSE === $result ) {//echo failure message
+		$url .= "?&message=failure";
+	} elseif(!isset($item_id) || $item_id == 999999){//don't do anything else for unpaid orders	
+	} else {
+		if(isset($_POST['class_type'])){
+			$class_type = $_POST['class_type'];
+		}else{
+			$class_id = $attendance->class_list_id;
+			$class = new Akimbo_Crm_Class($class_id);
+			$class_type = $class->get_class_type();
+		}
+		$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");//sessions_used
+		$age = $attendance->age_slug;
+		$meta_key = ($class_type == "enrolment") ? "weeks_used" : "sessions_used";
+		wc_update_order_item_meta($item_id, $meta_key, $meta_value);
+	}
+	
+	wp_redirect( $url ); 
+	exit;	
+}
+
+
+
+/**
+ *
+ * Change attendance ID for a given student to move them into another class
+ * 
+ */
+
+function akimbo_crm_swap_student(){
+	global $wpdb;
+	$table = $wpdb->prefix.'crm_attendance';
+	$data = array('class_list_id' => $_POST['class_id'],);
+	$where = array('attendance_id' => $_POST['att_id']);
+	$wpdb->update( $table, $data, $where); 
+	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class_id'];
+	wp_redirect( $url ); 
+	exit;	
+}
+
+
+
+
+/**
+ *
+ * Potentially outdated
+ * 
+ */
+
+/*************
+Reference list
+**************
+adult_enrolment_form() 
+crm_admin_add_new_student()
+
+*/
+//possibly outdated function? Moved from enrolment functions
+add_action( 'admin_post_adult_add_enrolment', 'adult_enrolment_form' );
+function adult_enrolment_form() {		
+		//update crm_students		
+		global $wpdb;
+		$table = $wpdb->prefix.'crm_students';
+		$data = array(
+			'user_id' => $_POST['user_id'],
+			'student_firstname' => $_POST['student_firstname'],
+			'student_lastname' => $_POST['student_lastname'],
+			'student_dob' => $_POST['student_dob'],
+			);
+		$wpdb->insert($table, $data);
+		
+		$admin_notice = "success";
+		$site = get_site_url();
+		$url = $site."/account";
+		wp_redirect( $url ); 
+		exit;	
+}
+
+
+
+function crm_admin_add_new_student(){
+	global $wpdb;
+	$table = $wpdb->prefix.'crm_students';
+	$data = array(
+		'user_id' => $_POST['customer_id'],
+		'student_firstname' => $_POST['student'],
+		);
+	$wpdb->insert($table, $data);
+	
+	// redirect to bookings page
+	$site = get_site_url();
+	$url = $site."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class'];
+
+	wp_redirect( $url ); 
+	exit;	
+}
+
+function admin_assign_order_id(){		
+	//update crm_attendance
+	global $wpdb;
+	$table = $wpdb->prefix.'crm_attendance';
+	//$where = array('class_list_id' => $_POST['class_id'],'student_id' => $_POST['student_id'],);
+	$where = array('attendance_id' => $_POST['att_id']);
+	$data = array('ord_id' => $_POST['item_id']);
+	$wpdb->update( $table, $data, $where);
+	
+	//update sessions
+	$item_id = $_POST['item_id'];
+	$casual = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = 'pa_sessions'"); 
+	$enrolment = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = 'weeks'"); 
+	if($casual){
+		$meta_key = "sessions_used";
+	}elseif($enrolment){
+		$meta_key = "weeks_used";
+	}
+	$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");
+	wc_update_order_item_meta($item_id, $meta_key, $meta_value);
+		
+	$admin_notice = "success";
+	$site = get_site_url();
+	$ref = $_POST['referral_url'];
+	if($ref){$url = $site.$ref;}else{$url = $site."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class_id'];}
+	
+	wp_redirect( $url ); 
+	exit;
+}
+
+add_action( 'admin_post_casual_unenrol_button', 'crm_early_cancel_unenrol' );//hopefully outdated
+add_action( 'admin_post_enrolment_unenrol_button', 'crm_early_cancel_unenrol' );//hopefully outdated crm_enrolment_unenrol_process
 function crm_casual_unenrolment(){//early cancel
 	global $wpdb;
 	$att_id = $_POST['att_id'];
 	$attendance = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE attendance_id = $att_id");
 	if($_POST['submit'] != "Late Cancel"){$item_id = $attendance->ord_id;}
-	
 	$class_id = $attendance->class_list_id;
 	
 	//update CRM attendance
@@ -467,119 +740,3 @@ function crm_enrolment_unenrol_process() {//renamed kids_unenrolment
 	wp_redirect( $url ); 
 	exit;
 }
-
-/**
- *
- * Change attendance ID for a given student to move them into another class
- * 
- */
-
-function akimbo_crm_swap_student(){
-	global $wpdb;
-	$table = $wpdb->prefix.'crm_attendance';
-	$data = array('class_list_id' => $_POST['class_id'],);
-	$where = array('attendance_id' => $_POST['att_id']);
-	$wpdb->update( $table, $data, $where); 
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class_id'];
-	wp_redirect( $url ); 
-	exit;	
-}
-
-
-
-
-/**
- *
- * Potentially outdated
- * 
- */
-
-/*************
-Reference list
-**************
-adult_enrolment_form() 
-crm_admin_add_new_student()
-
-*/
-
-function adult_enrolment_form() {		
-		//update crm_students		
-		global $wpdb;
-		$table = $wpdb->prefix.'crm_students';
-		$data = array(
-			'user_id' => $_POST['user_id'],
-			'student_firstname' => $_POST['student_firstname'],
-			'student_lastname' => $_POST['student_lastname'],
-			'student_dob' => $_POST['student_dob'],
-			);
-		$wpdb->insert($table, $data);
-		
-		$admin_notice = "success";
-		$site = get_site_url();
-		$url = $site."/account";
-		wp_redirect( $url ); 
-		exit;	
-}
-
-
-
-function crm_admin_add_new_student(){
-	global $wpdb;
-	$table = $wpdb->prefix.'crm_students';
-	$data = array(
-		'user_id' => $_POST['customer_id'],
-		'student_firstname' => $_POST['student'],
-		);
-	$wpdb->insert($table, $data);
-	
-	// redirect to bookings page
-	$site = get_site_url();
-	$url = $site."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class'];
-
-	wp_redirect( $url ); 
-	exit;	
-}
-
-function admin_assign_order_id(){		
-	//update crm_attendance
-	global $wpdb;
-	$table = $wpdb->prefix.'crm_attendance';
-	$where = array('class_list_id' => $_POST['class_id'],'student_id' => $_POST['student_id'],);
-	//$where = array('attendance_id' => $_POST['att_id']);
-	$data = array('ord_id' => $_POST['item_id']);
-	$wpdb->update( $table, $data, $where);
-	
-	//update sessions
-	$item_id = $_POST['item_id'];
-	$casual = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = 'pa_sessions'"); 
-	$enrolment = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = 'weeks'"); 
-	if($casual){
-		$meta_key = "sessions_used";
-		$meta_details = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = '$meta_key'"); 
-		$sessions_used = $meta_details->meta_value;
-		$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");
-		/*if (!$sessions_used){
-			wc_add_order_item_meta($item_id, $meta_key, $meta_value);
-		} else {*/
-		wc_update_order_item_meta($item_id, $meta_key, $meta_value);//}
-	} elseif($enrolment){
-		$meta_key = "weeks_used";
-		$meta_details = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = '$meta_key'"); 
-		$weeks_used = $meta_details->meta_value;
-		$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");
-		/*if (!$weeks_used){
-			wc_add_order_item_meta($item_id, $meta_key, $meta_value);
-		} else {*/
-wc_update_order_item_meta($item_id, $meta_key, $meta_value);
-//}
-	}
-		
-	$admin_notice = "success";
-	$site = get_site_url();
-	$ref = $_POST['referral_url'];
-	if($ref){$url = $site.$ref;}else{$url = $site."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class_id'];}
-	
-	wp_redirect( $url ); 
-	exit;
-}
-

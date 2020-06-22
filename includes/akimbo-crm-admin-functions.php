@@ -38,10 +38,54 @@ function crm_dashboard_widget_function() {
 	$date = current_time('Y-m-d');
 	crm_class_list(); 
 	if(current_user_can('manage_options')){
-		echo "<hr><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2'><button>Manage Classes</button></a>";
-		echo " <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4'><button>Manage Bookings</button></a>";
-		echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=details'><button>Student Info</button></a>";
-		echo " <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm3&tab=payroll'><button>Payroll</button></a>";
+		akimbo_crm_permalinks("classes", "button");
+		akimbo_crm_permalinks("bookings","button");
+		akimbo_crm_permalinks("students", "button");
+		akimbo_crm_permalinks("payroll", "button");
+	}
+}
+
+function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args = NULL){
+	switch($permalink){
+	    case "home": 
+	    	$page = "akimbo-crm";
+	    	$text = ($text != NULL) ? $text : "Home";
+	    break;
+	    case "classes":
+	   		$page = "akimbo-crm2";
+	    	$text = ($text != NULL) ? $text : "Manage Classes"; 
+	    break;
+	    case "payroll":  
+	    	$page = "akimbo-crm3";
+	    	$tab = "payroll";
+	    	$text = ($text != NULL) ? $text : "Payroll"; 
+	    break;
+	    case "bookings":
+	    	$page = "akimbo-crm4";
+	    	$text = ($text != NULL) ? $text : "Manage Bookings"; 
+	    break;
+	    case "students":  
+	    	$page = "akimbo-crm";
+	    	$tab = "details";
+	    	$text = ($text != NULL) ? $text : "Student Info"; 
+	    break;
+	    default: 
+	    	$page = 'akimbo-crm';
+	    	$text = ($text != NULL) ? $text : "Home";
+	}
+	$url = get_site_url()."/wp-admin/admin.php?page=".$page;
+	if(isset($tab)){
+	 	$url .= "&tab=".$tab;
+	}
+	if ($args != NULL) {
+		foreach($args as $key => $value){$url .= "&".$key."=".$value;}
+	}
+	if($format == "link"){
+		return $url;
+	}else{
+		$display = ($format == "button") ? "<button>".$text."</button>" : $text;
+		$result = "<a href='".$url."'>".$display."</a>";
+		echo $result;
 	}
 }
 
@@ -50,7 +94,6 @@ function akimbo_crm_admin_home_page(){
 	echo "<h2>Upcoming Classes</h2>";
 	global $wpdb;
 	$today = current_time('Y-m-d');
-
 	crm_class_list($today);
 	$path = get_site_url()."/wp-admin/admin.php?page=akimbo-crm";
 	echo "<h2><a href='".$path."&tab=details'><button>Student Details</button></a> <a href='".$path."&tab=roster'><button>View Roster</button></a> <a href='".$path."&tab=availabilities'><button>Update Availabilities</button></a></h2>";
@@ -58,10 +101,39 @@ function akimbo_crm_admin_home_page(){
 	if (current_user_can('manage_woocommerce')){
 		echo "<h2><a href='".$path."2'><button>Classes</button></a> <a href='".$path."2&tab=schedule'><button>Add Class</button></a> <a href='".$path."4'><button>Bookings</button></a> <a href='".$path."3&tab=payroll'> <button>Payroll</button></a></h2>";
 	}
-	/*if (current_user_can('manage_woocommerce')){
-		echo "<a href='https://www.circusakimbo.com.au/wp-admin/post-new.php?post_type=shop_order'><button>Add Order</button></a> 
-		<button>Run payroll report</button> <button>Export sales</button> <button>View P&L</button>";
-	}	*/ 
+}
+
+function akimbo_crm_student_details(){
+	crm_dropdown_selector("students", "akimbo-crm", "details");
+	crm_dropdown_selector("users", "akimbo-crm", "details");
+	akimbo_crm_permalinks("students", "text", "Add new student", array('student' => "new"));
+	echo "<br/><hr><br/>";
+	if(isset($_GET['message'])){
+		$message = ($_GET['message'] == "success") ? "<div class='updated notice is-dismissible'><p>Updates successful!</p></div>" : "<div class='error notice is-dismissible'><p>Update failed, please try again</p></div>";
+		echo apply_filters('student_details_update_notice', $message);
+	}
+	$url = (isset($_GET['class'])) ? akimbo_crm_permalinks("classes", "link", NULL, array("class" => $_GET['class'], )) : akimbo_crm_permalinks("students");
+	if(isset($_GET['student'])){//Student Details
+		$student_id = $_GET['student'];
+		if(is_numeric($student_id)){
+			$student = new Akimbo_Crm_Student($_GET['student']);
+			update_student_details_form($student_id, $url, 1);
+			echo "<br/><hr><br/>";
+			$student->display_classes();
+			$student->display_mailchimp(true);
+		}else{
+			update_student_details_form(0, $url, 1);
+		}
+	}
+
+	if(isset($_GET['user'])){//User Details
+		$user = new Akimbo_Crm_User($_GET['user']);
+		$user->display_user_info();
+	}
+
+	if(!isset($_GET['student']) && !isset($_GET['user'])){
+		crm_find_duplicate_students($url);
+	}
 }
 
 function akimbo_crm_unpaid_students(){
@@ -71,53 +143,15 @@ function akimbo_crm_unpaid_students(){
 
 	$unpaid_students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance LEFT JOIN {$wpdb->prefix}crm_class_list ON {$wpdb->prefix}crm_attendance.class_list_id = {$wpdb->prefix}crm_class_list.list_id WHERE ord_id = '' ORDER BY {$wpdb->prefix}crm_class_list.session_date DESC");
 	foreach($unpaid_students as $unpaid_student){
-		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php
+		$student = new Akimbo_Crm_Student($unpaid_student->student_id);
 		echo "<br/><b>".$unpaid_student->student_name."</b> ".$unpaid_student->class_title.", ".date("g:ia, l jS M Y", strtotime($unpaid_student->session_date));
-		?><input type="hidden" name="att_id" value="<?php echo $unpaid_student->attendance_id;?>">
-		<?php crm_select_available_user_orders($unpaid_student->user_id);?>
-		<input type="hidden" name="student_id" value="<?php echo $unpaid_student->student_id;?>">
-		<input type="hidden" name="class_id" value="<?php echo $unpaid_student->class_list_id;?>">
-		<input type="hidden" name="referral_url" value="/wp-admin/admin.php?page=akimbo-crm3&tab=payments">
-		<input type="hidden" name="action" value="admin_assign_order_id">
-		<input type='submit' value='Update'>  <i><a href="<?php echo get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=details&student=".$unpaid_student->student_id; ?>">View Student</a></i>
-		</form><?php
+		$student->update_unpaid_classes($unpaid_student->attendance_id, $unpaid_student->class_list_id, "/wp-admin/admin.php?page=akimbo-crm2&tab=payments");
+		echo $student->student_admin_link("View Student");
 		
 		$user = $unpaid_student->user_id;
 		$user_info = get_userdata($user);
-		echo "<i>User: ". $user_info->first_name." ".$user_info->last_name . ", ".$user_info->user_email."</i>";
+		echo ". <i>User: ". $user_info->first_name." ".$user_info->last_name . ", ".$user_info->user_email."</i>";
 	}
-}
-
-function akimbo_crm_manage_payroll(){
-	global $wpdb;
-	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
-	$crm_date = crm_date_setter_week($date);
-	echo "<h4>Payslip period: ".date("l jS M", strtotime($crm_date['week_start']))." - ".date("l jS M", strtotime($crm_date['week_end']));
-	echo "<br/>Payment date: ".date("l jS M", strtotime('thursday next week', strtotime($date)))."</h4>";
-	crm_date_selector("akimbo-crm3", "payroll");
-
-	$payroll = new Akimbo_Crm_Payroll($crm_date['week_start'], $crm_date['week_end']);
-	$payroll->display_items();
-	echo "<br/><hr>";
-	if(current_user_can('manage_options')){
-		//var_dump($payroll->get_items());
-		export_payroll_csv_file($payroll->get_items());
-		echo "<br/><br/><a href='https://quickbooks.intuit.com/au/quickbooks-login/' target='_blank'><button>Log In to Quickbooks</button></a>";
-	}
-}
-
-function akimbo_crm_roster(){
-	global $wpdb;
-	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
-	$crm_date = crm_date_setter_week($date);
-	echo "<h4>Week Starting: ".date("D jS M, Y", strtotime($crm_date['week_start']))."</h4>";
-	crm_date_selector("akimbo-crm", "roster");
-
-	$payroll = new Akimbo_Crm_Payroll($crm_date['week_start'], $crm_date['week_end']);
-	$payroll->display_items();
-	echo "<br/><hr><br/>Can't make a rostered shift? You can try to swap it in the trainer <a href='https://www.facebook.com/groups/863632663663310/'>Facebook group</a> or contact another staff member directly.";
-	echo "test";
-	if(current_user_can('manage_options')){crm_roster_edit_button();}
 }
 
 function akimbo_crm_enrolment_issues(){
@@ -126,39 +160,7 @@ function akimbo_crm_enrolment_issues(){
 	echo "<h2>Fix enrolment issues</h2>";
 
 	if(isset($_GET['item_id'])){crm_update_weeks_or_sessions($_GET['item_id']);}
-
-	echo "Display all Youth/Junior Circus orders where weeks != weeks_used OR weeks/weeks_used not set";
-	$classes = array_merge(get_all_orders_from_a_product_id( '1473' ), get_all_orders_from_a_product_id( '1479' ));
-
-	if($classes){
-		echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Youth/Junior Circus</th><th>Order ID</th><th>Weeks</th><th>Weeks Used</th><th>CRM count</th><th>Update</th><th></th></tr>";
-		foreach ($classes as $class){
-			$weeks = wc_get_order_item_meta($class->order_item_id, "weeks");
-			$used = wc_get_order_item_meta($class->order_item_id, "weeks_used");
-			$qty = wc_get_order_item_meta($class->order_item_id, "_qty");
-			$total_weeks = $weeks*$qty;
-			if($total_weeks != $used || $weeks < 1){
-				$order_id = $class->ID;
-				//var_dump($class);
-				$qty = wc_get_order_item_meta($class->order_item_id, "_qty");
-				echo "<tr><td>".$class->order_item_name;
-				echo "</td><td><a href='".$site."/wp-admin/post.php?post=".$class->ID."&action=edit'>".$class->ID."</a></td>";
-				?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-				<td><input type="text" name="weeks" value="<?php echo $weeks; ?>"><?php if ($qty >= 2) { echo " x".$qty;} ?></text></td>
-				<td><input type="text" name="weeks_used" value="<?php echo $used; ?>"></text></td>
-				<td><?php echo $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $order_id "); ?></td>
-				<input type="hidden" name="item_id" value="<?php echo $class->order_item_id;?>">
-				<input type="hidden" name="action" value="enrolment_issues_weeks_used_update">
-				<td><input type='submit' value='Update meta'></form></td>
-
-
-				<?php
-				echo "<td><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=details&user=".get_post_meta($order_id, '_customer_user', true)."'>View students</a>";
-				echo "</td></tr>";
-			}
-		}
-		echo "</table>";	
-	}else{echo "<h2>No issues found!<h2>";}
+	crm_display_enrolment_issues();
 }
 
 function akimbo_crm_business_details(){
