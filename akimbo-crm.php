@@ -126,7 +126,7 @@ class AkimboCRM {
 	function akimbo_crm_admin_menu(){//Title, admin panel label, user capabilities, slug, function callback
 		if (current_user_can('upload_files')){
 			$parent_slug = "akimbo-crm";
-			add_menu_page( 'Circus Akimbo Admin', 'Akimbo CRM', 'upload_files', 'akimbo-crm', array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
+			add_menu_page( 'Circus Akimbo Admin', 'Akimbo CRM', 'upload_files', $parent_slug, array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
 			add_submenu_page( $parent_slug, 'Classes', 'Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
 			add_submenu_page( $parent_slug, 'Business Admin', 'Business', 'manage_options', 'akimbo-crm3', array(&$this, 'manage_orders' ), 3);
 			add_submenu_page( $parent_slug, 'Settings', 'Settings', 'manage_options', 'crm-options', array(&$this, 'akimbo_crm_options_page' ), 4);
@@ -213,7 +213,7 @@ class AkimboCRM {
 			echo "</h2>";
 
 			switch ($active_tab) {
-			    case "business": apply_filters('akimbo_crm3_business details', akimbo_crm_business_details());//test info in akimbo-crm 2.0 functions
+			    case "business": apply_filters('akimbo_crm3_business details', akimbo_crm_business_details());//test info in akimbo crm 2.0 functions
 			    break;
 			    case "statistics": include 'includes/includes/student_statistics.php';  	
 			    break;
@@ -235,22 +235,28 @@ class AkimboCRM {
    		add_option( 'akimbo_crm_order_message', 'Thanks for ordering with us!');
    		register_setting( 'akimbo_crm_options', 'akimbo_crm_order_message', $args );
    		add_option( 'akimbo_crm_class_booking_window', '-24hrs');
-   		//Class products
-   		register_setting( 'akimbo_crm_options', 'akimbo_crm_class_booking_window', $args );
-   		add_option( 'akimbo_crm_adult_class_products', 'a:2:{i:0;i:308;i:1;i:227;}');
+		register_setting( 'akimbo_crm_options', 'akimbo_crm_class_booking_window', $args );
+		   
+		//Class products//remove in 2.1
+   		/*add_option( 'akimbo_crm_adult_class_products', 'a:2:{i:0;i:308;i:1;i:227;}');
    		register_setting( 'akimbo_crm_product_options', 'akimbo_crm_adult_class_products', $args );
    		add_option( 'akimbo_crm_training_class_products', serialize(array(227, 308)));
    		register_setting( 'akimbo_crm_product_options', 'akimbo_crm_training_class_products', $args );
    		add_option( 'akimbo_crm_kids_class_products', serialize(array(227, 308)));
    		register_setting( 'akimbo_crm_product_options', 'akimbo_crm_kids_class_products', $args );
    		add_option( 'akimbo_crm_playgroup_class_products', serialize(array(227, 308)));
-   		register_setting( 'akimbo_crm_product_options', 'akimbo_crm_playgroup_class_products', $args );
+		register_setting( 'akimbo_crm_product_options', 'akimbo_crm_playgroup_class_products', $args );*/
+		//Payroll settings
+		//akimbo_crm_pay_day
+		add_option( 'akimbo_crm_pay_day', 'Thursday');
+   		register_setting( 'akimbo_crm_business_options', 'akimbo_crm_pay_day', $args );
+
 	}
 
 	function akimbo_crm_options_page(){
 		if (current_user_can('manage_options')){
 			?><div><?php screen_icon(); ?>
-			<h2>Options</h2><form method="post" action="options.php">
+			<h2>Akimbo CRM Options</h2><form method="post" action="options.php">
 			<?php settings_fields( 'akimbo_crm_options' ); ?>
 			<table>
 			<tr valign="top"><th scope="row"><label for="akimbo_crm_account_message">Account Message</label></th>
@@ -261,6 +267,7 @@ class AkimboCRM {
 			<td><input type="text" id="akimbo_crm_class_booking_window" name="akimbo_crm_class_booking_window" value="<?php echo get_option('akimbo_crm_class_booking_window'); ?>" size="50"/></td></tr>
 			</table><?php  submit_button(); ?></form></div><?php
 
+			/* //remove in 2.1
 			?><div><?php screen_icon(); ?>
 			<h2>Class Options: DO NOT UPDATE</h2><form method="post" action="options.php">
 			<?php settings_fields( 'akimbo_crm_product_options' ); ?>
@@ -285,9 +292,18 @@ class AkimboCRM {
 			$options = get_option('akimbo_crm_playgroup_class_products');
 			foreach($options as $option){echo $option.", "; }?></td></tr>
 			
+			</table><?php  submit_button(); ?></form></div><?php */
+
+			?><div><?php screen_icon(); ?>
+			<h2>Payroll Settings</h2><form method="post" action="options.php">
+			<?php settings_fields( 'akimbo_crm_business_options' ); ?>
+			<table>
+			<tr valign="top"><th scope="row"><label for="akimbo_crm_pay_day">Pay Day:</label></th>
+			<td><input type="text" id="akimbo_crm_pay_day" name="akimbo_crm_pay_day" value="<?php echo get_option('akimbo_crm_pay_day'); ?>" size="50"/></td></tr>
 			</table><?php  submit_button(); ?></form></div><?php
+
 		}else{
-			wp_die( __("Sorry, you don't have permission to view statistics. Please contact an admin if you think you should have access to this page") );
+			wp_die( __("Sorry, you don't have permission to edit settings. Please contact an admin if you think you should have access to this page") );
 		}
 	}
 
