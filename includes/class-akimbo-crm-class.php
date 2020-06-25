@@ -66,6 +66,10 @@ class Akimbo_Crm_Class{
 		return $this->class_info->age_slug;
 	}
 
+	function get_semester(){
+		return $this->class_info->semester_slug;
+	}
+
 	function previous_class(){
 		global $wpdb;
 		$previous = $this->class_id - 1;
@@ -151,19 +155,6 @@ class Akimbo_Crm_Class{
 		return $class_date;
 	}
 
-	/**
-	*
-	* Update class date, front end function
-	*
-	*/
-	function crm_update_class_date_form(){
-		$date = explode(" ", $this->class_info->session_date);
-		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-		Date: <input type="date" name="new_class_start" value="<?php echo $date[0]; ?>"><input type="time" name="new_class_time"  value="<?php echo $date[1]; ?>"> Length: <input type="number" name="duration" value="<?php echo $this->class_info->duration; ?>">
-		<input type="hidden" name="id" value="<?php echo $id; ?>"><input type='submit' value='Update'>
-		</form><?php
-	}
-
 	function get_class_info(){
 		return $this->class_info;
 	}
@@ -198,12 +189,11 @@ class Akimbo_Crm_Class{
 		return $capacity;
 	}
 
-	function class_admin_link($id, $display = NULL){//text to display or link only
-		$id = (!isset($id)) ? $this->class_id : $id;
+	function class_admin_link($display = NULL){//text to display or link only
 		if($display != NULL){
-			$url = "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$id."'>".$display."</a>";
+			$url = "<a href='".akimbo_crm_class_permalink($this->class_id)."'>".$display."</a>";
 		}else{
-			$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$id;
+			$url = akimbo_crm_class_permalink($this->class_id);
 		}
 		return $url;
 	}
@@ -215,15 +205,27 @@ class Akimbo_Crm_Class{
 		return $classes;
 	}
 
-	function enrolment_related_classes($format = 'all'){//all, ids
+	function enrolment_related_classes($format = 'all', $date = NULL){//all, ids
 		global $wpdb;
 		$variation = $this->class_info->class_id;
 		$semester = $this->class_info->semester_slug;
 		$title = $this->class_info->class_title;//check class title so this work for casual classes too
 		$result = array();
 		if($semester != NULL){
-			//$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' AND semester_slug = '$semester' ORDER BY session_date ASC" );
-			$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' AND semester_slug = '$semester' AND class_title = '$title' ORDER BY session_date ASC" );
+			if($date != NULL){//classes from specific  e.g. future
+				$classes = $wpdb->get_results(
+					"SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' 
+					AND semester_slug = '$semester' 
+					AND class_title = '$title' 
+					AND session_date >= '$date' 
+					ORDER BY session_date ASC" );
+			}else{
+				$classes = $wpdb->get_results(
+					"SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation' 
+					AND semester_slug = '$semester' 
+					AND class_title = '$title' 
+					ORDER BY session_date ASC" );
+			}
 			foreach($classes as $class){
 				$result[] = ($format == "ids") ? $class->list_id : new Akimbo_Crm_Class($class->list_id);
 			}
@@ -238,155 +240,59 @@ class Akimbo_Crm_Class{
 		return count($this->enrolment_related_classes());
 	}
 
-
-	/*
-	*
-	* Display Functions
-	*
-	*/
-
-	function display_related_classes(){
-		global $wpdb;//use period to differentiate between future, period (all, future or semester e.g. T2-2020) and all
-		$i=0;
-		$class_variations = $this->enrolment_related_classes();
-		//var_dump($class_variations);
-		echo "<table width='80%''><tr bgcolor = '#33ccff'><th colspan='6' align='center'>".$this->class_info->semester_slug."</th></tr><tr bgcolor = '#89ccff'><th>Week</th><th>Class Name</th><th>Class Date</th><th>Enrolled</th><th>Attended</th><th>Details</th></tr>";
-		foreach($class_variations as $class){
-			$i++;
-			$class_info = $class->get_class_info();
-			echo "<tr><td>".$i."</td><td>".$class_info->class_title."</td><td>".$class_info->session_date."</td><td></td><td></td><td><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$class_info->list_id."'>View</a></td></tr>";
-		}
-		echo "</table>";
-	}
-
-	function display_attendance_table(){
-		$class_info = $this->get_class_info();
-		?><style>table td {
-		    border-top: thin solid; 
-		    border-bottom: thin solid;
-		    border-collapse: collapse;
-		}</style><?php
-		echo "<br/><table width='80%' style='border-collapse: collapse;'><tr bgcolor = '#33ccff'><th colspan='3'><h2>";
-		if($this->previous_class() >= 1){echo "<a href='".$this->class_admin_link($this->previous_class())."'><input type='submit' value='<'></a> ";}
-		echo $class_info->class_title." ".date("g:ia, l jS M", strtotime($class_info->session_date));
-		if($this->next_class() >= 1){echo  " <a href='".$this->class_admin_link($this->next_class())."'><input type='submit' value='>'></a>";	}
-		echo "</h2></th>";
-		$class_student_info = $this->get_student_info();
-		$students = $class_student_info['student_list'];
-		if($students){
-			?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php
-			$i=0;
-			foreach($students as $student){
-				$i++;//increment here so it gets correct number of students
-				echo "<tr><td>".$student->student_id.". ".$student->student_admin_link($student->full_name())."</td><td>";
-				if($student->ord_id >= 1){ 
-					echo "<a href='".crm_admin_order_link_from_item_id($student->ord_id)."'>".$student->ord_id."</a>";}else{echo "UNPAID";}
-				?></td><td><input type="checkbox" name="student_<?php echo $i?>" value="1" <?php if($student->attended >= 1){echo "checked='checked'";}?> 
-				>Student <?php echo $i."</td></tr>";
-				if($student->get_student_info()->student_notes){
-					echo "<tr><td colspan='2'>Notes: ".$student->get_student_info()->student_notes."</td><td></td></tr>";
-				}
-				if($student->get_student_info()->student_waiver <= 0){
-					echo "<tr><td colspan='2'>Has not completed waiver</td><td></td></tr>";
-				}
-				?><input type="hidden" name="student_<?php echo $i;?>_id" value="<?php echo $student->student_id;?>"><?php
-
-			}
-			?><input type="hidden" name="count" value="<?php echo $i;?>">
-			<input type="hidden" name="class" value="<?php echo $this->class_id;?>">
-			<input type="hidden" name="action" value="mark_attendance">
-			<tr><td colspan='2'></td><td><input type='submit' value='Update Attendance'></td>
-			</form><?php 
-		}else{
-			echo "<tr><td colspan='3'><br/>No students enrolled<br/><br/></td></tr>";
-		}
-		echo "</table><br/>";
-	}
-
-
 	function class_semester(){
 		global $wpdb;
 		$date = $this->class_info->session_date;
 		$semester = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_semesters WHERE semester_start <= '$date' AND semester_end >= '$date' LIMIT 1");
-		// 
+		
 		return $semester->semester_slug;
-		//return $semester;
 	}
 
+	/**
+	 * 
+	 * move to class functions, send info
+	 * 
+	 */
 	function matched_orders(){
 		global $wpdb;
 		$variation_id = $this->class_info->class_id;
-		$semester = $this->class_info->semester_slug;
 		$items_ids = get_all_orders_items_from_a_product_variation( $this->class_info->class_id );
-		$student_info = $this->get_student_info();
-		//$student_ids = $student_info['student_ids'];
-		$matches = false;
-		//if(!$items_ids){$items_ids = get_all_orders_items_from_a_product( $product_id )}//NEW CODE
-		if(isset($items_ids)){
-			echo "<table width='80%''><tr bgcolor = '#33ccff'><th colspan='2'>Matched Orders</th></tr>";
-			foreach( $items_ids as $item_id){
-				$order_id = $wpdb->get_var("SELECT order_id FROM {$wpdb->prefix}woocommerce_order_items WHERE order_item_id = $item_id");
-				$order = wc_get_order($order_id);
-				if($order->get_status() != "pending"  && get_post_type($order_id) != "shop_subscription"){//don't show unpaid orders or subscriptions
-					$user_id = $order->get_user_id();
-					$user_info = get_userdata($user_id);
-					$details = crm_weeks_remaining($item_id);
-					if($details['weeks'] <= 0){
-						$weeks = $this->enrolment_related_classes_count();
-						wc_add_order_item_meta($item_id, "weeks", $weeks);
-					}
-					if($details['remaining'] <= 0){//echo "used up";
-					} else {//echo "show order";
-						$matches = true;
-						$qty = $details['qty'];
-						for($i = 1; $i <= $qty; $i++){
-							echo "<tr><td>Order ".$order_id.", ". wc_get_order_item_meta( $item_id, 'class-time', true );
-							echo "<br/><i>Booked by " . $user_info->display_name."</i></td><td>";
-
-							?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-							Select student: <select name= 'student_id'><?php 
-							$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_students WHERE user_id = $user_id");
-							foreach ($students as $student){
-									$student_id = $student->student_id;
-									if(in_array($student_id, $student_info['student_ids'])){//don't show
-									} else {
-										$student_name = $student->student_firstname;?>
-										<option value="<?php echo $student_id;?>"><?php echo $student_name." ".$student->student_lastname;?></option>
-									<?php }	
-							} ?>
-							</select> 
-						
-							<!--<input type="hidden" name="ord_id" value="<?php echo $order_id; ?>"><!-- update order IDs to use item id for kids too -->
-							<input type="hidden" name="customer_id" value="<?php echo $user_id; ?>">
-							<input type="hidden" name="admin" value="1">
-							<input type="hidden" name="item_id" value="<?php echo $item_id;?>">
-							<input type="hidden" name="class_id" value="<?php echo $this->class_id;?>">
-							<input type="date" name="start_date">
-							<input type="hidden" name="action" value="kids_enrolment_confirmation">
-							
-							<input type='submit' value='Enrol'> </form>
-							
-							
-							<!--Add new student button-->
-							<form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-							<input type="hidden" name="customer_id" value="<?php echo $user_id; ?>">
-							<input type="hidden" name="class" value="<?php echo $this->class_id;?>">
-							<input type="hidden" name="action" value="admin_add_new_student">
-							or <input type="text" name="student" placeholder="Student first name"> <input type='submit' value='Add New'>
-							</form>
-							</tr>
-							<?php 
-						}
-					} // comment out for import purposes
+		$matched_orders = 0;
+		foreach($items_ids as $item_id){
+			$item_info = crm_get_item_available_passes($item_id);
+			if($item_info['available']){
+				$matched_orders++;
+				if($matched_orders == 1){
+					echo "<table width='80%''><tr><th colspan='2'>Matched Orders</th></tr>";
+					$table = true;
 				}
-				
+				$user = new Akimbo_Crm_User($item_info['user_id']);
+							
+				echo "<tr><td>Order ".$item_info['order_id'].", ". wc_get_order_item_meta( $item_id, 'class-time', true );
+				echo "<br/><i>Booked by " . $user->get_firstname.", ".$item_info['remaining']." remaining</i></td><td>";
+
+				/**
+				 * Assign order to correct student
+				 */
+				?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+				<?php echo "Student: ".$user->student_dropdown(); ?>
+				<input type="hidden" name="customer_id" value="<?php echo $user_id; ?>">
+				<input type="hidden" name="item_id" value="<?php echo $item_id;?>">
+				<input type="hidden" name="class_id" value="<?php echo $this->class_id;?>">
+				 Start Date: <input type="date" name="start_date">
+				<input type="hidden" name="action" value="kids_enrolment_confirmation">
+				<input type='submit' value='Enrol'> </form>
+				<!--Add new student button-->
+				<form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+				<input type="hidden" name="customer_id" value="<?php echo $user_id; ?>">
+				<input type="hidden" name="class" value="<?php echo $this->class_id;?>">
+				<input type="hidden" name="action" value="admin_add_new_student">
+				or <input type="text" name="student" placeholder="Student first name"> <input type='submit' value='Add New'>
+				</form></tr>
+				<?php 
 			}
-			if($matches == false){echo "<tr><td colspan'2'>None found</td></tr>";}
-			echo "</table>";
-
 		}
-			
-
+		if(isset($table)){echo "</table";}//close table tag if matched orders table created
 	}
 	
 	function class_income(){
@@ -412,13 +318,4 @@ class Akimbo_Crm_Class{
 		}
 		return $result;
 	}
-
-	function delete_all(){
-		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-		<input type="hidden" name="class_id" value="<?php echo $this->class_id; ?>">
-		<input type='hidden' name='action' value='crm_delete_class_series'>
-		<b><input type='submit' value='Delete Series'></b></form><?php
-	}
-
-
 }

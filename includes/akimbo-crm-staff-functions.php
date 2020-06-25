@@ -105,10 +105,10 @@ function akimbo_crm_manage_payroll(){
 	global $wpdb;
 	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
 	$crm_date = crm_date_setter_week($date);
-	echo "<h4>Payslip period: ".date("l jS M", strtotime($crm_date['week_start']))." - ".date("l jS M", strtotime($crm_date['week_end']));
-	echo "<br/>Payment date: ".date("l jS M", strtotime('thursday next week', strtotime($date)))."</h4>";
+	echo "<h4>Payslip period: ".date("l jS M", strtotime($crm_date['last_week_start']))." - ".date("l jS M", strtotime($crm_date['last_week_end']));
+	$pay_day = strtolower(get_option("akimbo_crm_pay_day"))." this week";
+	echo "<br/>Payment date: ".date("l jS M", strtotime($pay_day, strtotime($date)))."</h4>";
 	crm_date_selector("akimbo-crm3", "payroll");
-
 	$payroll = new Akimbo_Crm_Payroll($crm_date['week_start'], $crm_date['week_end']);
 	$payroll->display_items();
 	echo "<br/><hr>";
@@ -119,7 +119,8 @@ function akimbo_crm_manage_payroll(){
 	}
 }
 
-function akimbo_crm_roster(){
+//Removed in 2.1
+/*function akimbo_crm_roster(){
 	global $wpdb;
 	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
 	$crm_date = crm_date_setter_week($date);
@@ -136,7 +137,7 @@ function akimbo_crm_roster(){
 		echo "<br/><hr><br/>";
 	}
 
-}
+}*/
 
 
 function akimbo_crm_update_trainer_availabilities($user_id = NULL){
@@ -246,11 +247,20 @@ function akimbo_crm_staff_details(){
 	$args = array('role__in' => array('shop_manager', 'author', 'administrator'),'orderby' => 'display_name', 'order' => 'ASC',);
 	$users = get_users( $args );
 	if(isset($_GET['message'])){ ?><div class="updated notice is-dismissible"><p>Updates successful!</p></div><?php }
-
+	$message = "<br/><hr><br/>Can't make a rostered shift? You can try to swap it in the trainer <a href='https://www.facebook.com/groups/863632663663310/'>Facebook group</a> or contact another staff member directly.<br/><hr><br/>";
+	echo apply_filters('akimbo_crm_manage_roster_message', $message);
+	if(current_user_can('manage_options')){
+		crm_roster_update();//add shifts
+		crm_roster_edit_button();//send update email
+		echo "<br/><hr><br/>";
+	}
+	/**
+	 * Staff details
+	 */
 	echo "<table width='80%'><tr bgcolor = '#33ccff'><td>ID</td><td>Name</td><td>Email</td><td colspan='2'></td></tr>";
 	foreach ($users as $user){ echo "<tr><td>".$user->ID."</td><td>".$user->display_name."</td><td>".esc_html( $user->user_email )."</td>";
 	if(current_user_can('manage_options')){echo "<td><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=roster&staff_id=".$user->ID."'>Employee Details</a></td>";}
-	echo "<td><a href='".$site."/wp-admin/user-edit.php?user_id=6'>View User</a></td></tr>"; 
+	echo "<td><a href='".get_site_url()."/wp-admin/user-edit.php?user_id=6'>View User</a></td></tr>"; 
 		$emails[] = esc_html( $user->user_email );
 		if(isset($_GET['staff_id'])){
 			$staff_id = $_GET['staff_id'];

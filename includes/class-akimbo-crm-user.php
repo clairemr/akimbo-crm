@@ -64,6 +64,31 @@ class Akimbo_Crm_User extends WP_User{
 	function get_student_ids(){
 		return $this->student_ids;
 	}
+
+	function student_dropdown($name = "student_id", $exclude = NULL){
+		global $wpdb;
+		$exclude = ($exclude != NULL) ? $exclude : array();
+		$select = "<select name= '".$name."'>";
+		$user_id = $this->user_id;
+		$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_students WHERE user_id = '$user_id'");
+		foreach ($students as $student){
+			$student_id = $student->student_id;
+			if(in_array($student_id, $exclude)){//don't show
+			} else {
+				$select .= "<option value='".$student_id."'>".$student->student_firstname." ".$student->student_lastname."</option>";
+			}	
+		}
+		$select .= "</select>";
+		
+		return $select;
+	}
+
+	function add_student(){
+
+		
+		return $this->firstname;
+	}
+
 	function get_firstname(){
 		return $this->firstname;
 	}

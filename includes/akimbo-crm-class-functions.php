@@ -34,20 +34,35 @@ akimbo_crm_swap_student_button($class_id, $student_info['student_list'])//Update
 akimbo_crm_update_unpaid_student_orders
 */
 
-
-
-
-
-
-
-
-
-
+/*
+* Admin area list of all classes
+*/
+function crm_class_list($start = NULL, $end = NULL, $length = 10, $format = "display"){
+	global $wpdb;
+	$start = ($start != NULL) ? $start : current_time('Y-m-d');//ternary operator
+	if($end != NULL){
+		$classes = $wpdb->get_col("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$start' AND session_date <= '$end' ORDER BY session_date ASC" );
+	} else{
+		$classes = $wpdb->get_col("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$start' ORDER BY session_date ASC LIMIT $length " );
+	}
+	if($classes  && $format == "display"){
+		echo "<table><tr bgcolor = '#33ccff'><th>Class</th><th>Trainer/s</th><th>Enrolments</th><th>Attendance</th></tr>";
+		foreach ( $classes as $class_id ) {
+			$class = new Akimbo_Crm_Class($class_id);//->list_id
+			$class_info = $class->get_class_info();
+			echo "<tr><td>".$class->get_booking_date().": ".$class_info->class_title."</td><td>";
+			echo $class->trainer_names()."</td><td>";
+			$capacity = $class->capacity();//enrolments
+			echo $capacity['count']."/".$capacity['capacity']."</td><td>".$class->class_admin_link("View Class")."</tr>";
+		}
+		echo "</table>";
+	}elseif($format != "display"){
+		return $classes;
+	}else{echo "No classes found, please try a different date";}
+}
 
 /**
- *
- * Admin Area
- * 
+ * Class details page
  */
 function akimbo_crm_manage_classes(){
 	if(isset($_GET['message'])){
@@ -75,40 +90,32 @@ function akimbo_crm_manage_classes_details($class_id){
 	if(!$class_info){echo "No class found for that ID";
 	}else{
 		$class_type = $class->get_class_type();
-		
 		$student_info = $class->get_student_info();
 		if(!$student_info){$student_info = array('student_ids' => 0, '$student_list' => 0);}//testing to see if its empty classes that aren't working
 		do_action( 'akimbo_crm_manage_classes_before_attendance_table', $class_id );
 		echo apply_filters('manage_classes_attendance_table_title', "<h2>Mark Attendance</h2>");
 		apply_filters('manage_classes_update_trainer_dropdown', crm_update_trainer_dropdown("class", $class_id, unserialize($class->get_class_info()->trainers)));
-		apply_filters('manage_classes_mark_attendance_table', $class->display_attendance_table());
-		if($student_info['count'] <= 0){
-			apply_filters('manage_classes_cancel_class_button', crm_simple_delete_button("crm_class_list", "list_id", $class_id, "/wp-admin/admin.php?page=akimbo-crm2", "Delete class") );	
-			apply_filters('manage_classes_cancel_series_button', $class->delete_all() );	
-		}
+		apply_filters('manage_classes_mark_attendance_table', display_attendance_table($class));
 		do_action('manage_classes_enrolment', akimbo_crm_admin_manual_enrolment_button($class_id, $student_info['student_ids'], $class->get_class_type(), $class_info->age_slug)); 
-		//echo $class_type;
 		if($student_info['student_list']){//only show unenrol button if students are enrolled
 			do_action('manage_classes_unenrolment', crm_admin_unenrolment_button($class_id, $student_info['student_list'], $class_type));
 		}
 		if($class_type == "enrolment"){
 			do_action('manage_classes_swap_student', akimbo_crm_swap_student_button($class, $student_info['student_list'])); 
-			echo "<br/>";
-			echo $class->matched_orders();
+			echo "<br/>".$class->matched_orders();
 		}
-
 		$unpaid_students = $student_info['unpaid_students'];
 		if(isset($unpaid_students)){
 			echo apply_filters('manage_classes_attendance_table_title', "<h2>Update Order IDs</h2>");
 			foreach($unpaid_students as $unpaid_student){
 				echo $unpaid_student->full_name();
-				$url = "/wp-admin/admin.php?page=akimbo-crm2&class=".$class_id;
+				$url = "/wp-admin/admin.php?page=akimbo-crm&class=".$class_id;
 				$unpaid_student->update_unpaid_classes($unpaid_student->att_id, $class_id, $url);
 			}				
 		}
 
 		//show other classes from the same term
-		echo apply_filters('manage_classes_show_other_variations', $class->display_related_classes());
+		echo apply_filters('manage_classes_show_other_variations', display_related_classes($class));
 		$class->email_list("echo");
 		if(isset($user_list)){
 			echo "<h2>Emails</h2>";
@@ -117,12 +124,93 @@ function akimbo_crm_manage_classes_details($class_id){
 
 		echo "<h2>Class Details</h2>";
 		echo "<strong>Age: </strong>".$class->age_slug()."<br/><strong>Type: </strong>".$class->get_class_type()."<br/><strong>Semester: </strong>".$class->class_semester()."<br/>";
-		$class->crm_update_class_date_form();
+		crm_update_class_date_form($class);
 		echo "<br/><hr><br/>";		
 	}
 }
 
+/*
+*
+* Display Functions
+*
+*/
 
+function display_related_classes($class){
+	global $wpdb;//use period to differentiate between future, period (all, future or semester e.g. T2-2020) and all
+	$i=0;
+	$class_variations = $class->enrolment_related_classes();
+	echo "<table width='80%''><tr bgcolor = '#33ccff'><th colspan='6' align='center'>".$class->get_semester()."</th></tr><tr bgcolor = '#89ccff'><th>Week</th><th>Class Name</th><th>Class Date</th><th>Enrolled</th><th>Attended</th><th>Details</th></tr>";
+	foreach($class_variations as $class){
+		$i++;
+		$class_info = $class->get_class_info();
+		echo "<tr><td>".$i."</td><td>".$class_info->class_title."</td><td>".$class_info->session_date."</td><td></td><td></td><td>".akimbo_crm_class_permalink($class_info->list_id, "View")."</td></tr>";
+	}
+	echo "</table>";
+}
+
+function display_attendance_table($class){
+	$class_info = $class->get_class_info();
+	echo "<br/><table width='80%' style='border-collapse: collapse;'><tr bgcolor = '#33ccff'><th colspan='3'><h2>";
+	if($class->previous_class() >= 1){echo "<a href='".akimbo_crm_class_permalink($class->previous_class())."'><input type='submit' value='<'></a> ";}
+	echo $class_info->class_title." ".date("g:ia, l jS M", strtotime($class_info->session_date));
+	if($class->next_class() >= 1){echo  " <a href='".akimbo_crm_class_permalink($class->next_class())."'><input type='submit' value='>'></a>";	}
+	echo "</h2></th>";
+	$class_student_info = $class->get_student_info();
+	$students = $class_student_info['student_list'];
+	if($students){
+		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php
+		$i=0;
+		foreach($students as $student){
+			$i++;//increment here so it gets correct number of students
+			echo "<tr><td>".$student->student_id.". ".$student->student_admin_link($student->full_name())."</td><td>";
+			if($student->ord_id >= 1){ 
+				echo "<a href='".crm_admin_order_link_from_item_id($student->ord_id)."'>".$student->ord_id."</a>";}else{echo "UNPAID";}
+			?></td><td><input type="checkbox" name="student_<?php echo $i?>" value="1" <?php if($student->attended >= 1){echo "checked='checked'";}?> 
+			>Student <?php echo $i."</td></tr>";
+			if($student->get_student_info()->student_notes){
+				echo "<tr><td colspan='2'>Notes: ".$student->get_student_info()->student_notes."</td><td></td></tr>";
+			}
+			if($student->get_student_info()->student_waiver <= 0){
+				echo "<tr><td colspan='2'>Has not completed waiver</td><td></td></tr>";
+			}
+			?><input type="hidden" name="student_<?php echo $i;?>_id" value="<?php echo $student->student_id;?>"><?php
+
+		}
+		?><input type="hidden" name="count" value="<?php echo $i;?>">
+		<input type="hidden" name="class" value="<?php echo $class->class_id;?>">
+		<input type="hidden" name="action" value="mark_attendance">
+		<tr><td colspan='2'></td><td><input type='submit' value='Update Attendance'></td>
+		</form><?php 
+	}else{
+		echo "<tr><td colspan='3'><br/>No students enrolled<br/><br/>";
+		crm_simple_delete_button("crm_class_list", "list_id", $class->class_id, "/wp-admin/admin.php?page=akimbo-crm", "Delete class");
+		crm_delete_class_series_button($class->class_id);
+		echo "</td></tr>";
+	}
+	echo "</table><br/>";
+}
+
+/**
+ * Delete Class Series button
+ */
+function crm_delete_class_series_button($class_id){
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+	<input type="hidden" name="class_id" value="<?php echo $class_id; ?>">
+	<input type='hidden' name='action' value='crm_delete_class_series'>
+	<b><input type='submit' value='Delete Series'></b></form><?php
+}
+
+/**
+* Update class details
+*/
+function crm_update_class_date_form($class){
+	$class_info = $class->get_class_info();
+	$date = explode(" ", $class_info->session_date);
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+	Date: <input type="date" name="new_class_start" value="<?php echo $date[0]; ?>"><input type="time" name="new_class_time"  value="<?php echo $date[1]; ?>"> Length: <input type="number" name="duration" value="<?php echo $class_info->duration; ?>">
+	<input type="hidden" name="id" value="<?php echo $class_info->class_id; ?>"><input type='submit' value='Update'>
+	</form><?php
+}
 
 function akimbo_crm_admin_manual_enrolment_button($class_id, $student_list, $class_type = "casual", $age = NULL){
 	global $wpdb;
@@ -131,7 +219,7 @@ function akimbo_crm_admin_manual_enrolment_button($class_id, $student_list, $cla
 	<input type="hidden" name="class" value="<?php echo $class_id;?>">
 	<input type="hidden" name="type" value="<?php echo $class_type;?>">
 	<input type="hidden" name="age" value="<?php echo $age;?>">
-	<input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm2&class=<?php echo $class_id;?>"><?php
+	<input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm&class=<?php echo $class_id;?>"><?php
 	if($class_type == "casual"){
 		?><input type="hidden" name="action" value="update_casual_enrolment"><input type="hidden" name="order" value="0"><?php //student functions
 	}else{
@@ -162,39 +250,6 @@ function akimbo_crm_swap_student_button($class, $student_list){//class object, a
 	</form><?php
 }
 
-
-
-
-
-/*
-*
-* Replaces crm_display_timetable in 2.0
-*
-*/
-function crm_class_list($start = NULL, $end = NULL, $length = 10, $format = "display"){
-	global $wpdb;
-	$start = ($start != NULL) ? $start : current_time('Y-m-d');//ternary operator
-	if($end != NULL){
-		$classes = $wpdb->get_col("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$start' AND session_date <= '$end' ORDER BY session_date ASC" );
-	} else{
-		$classes = $wpdb->get_col("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$start' ORDER BY session_date ASC LIMIT $length " );
-	}
-	if($classes  && $format == "display"){
-		echo "<table><tr bgcolor = '#33ccff'><th>Class</th><th>Trainer/s</th><th>Enrolments</th><th>Attendance</th></tr>";
-		foreach ( $classes as $class_id ) {
-			$class = new Akimbo_Crm_Class($class_id);//->list_id
-			$class_info = $class->get_class_info();
-			echo "<tr><td>".$class->get_booking_date().": ".$class_info->class_title."</td><td>";
-			echo $class->trainer_names()."</td><td>";
-			$capacity = $class->capacity();//enrolments
-			echo $capacity['count']."/".$capacity['capacity']."</td><td><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$class_id."'><i>View Class<i></a></tr>";
-		}
-		echo "</table>";
-	}elseif($format != "display"){
-		return $classes;
-	}else{echo "No classes found, please try a different date";}
-}
-
 /*
 *
 * Actions
@@ -217,8 +272,8 @@ function mark_attendance(){//values set on manage_classes.php
 			$data = (isset($_POST[$value])) ? array('attended' => 1,) : array('attended' => 0,);
 			$wpdb->update( $table, $data, $where); 
 		}
-	}	
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class']."&message=success";
+	}
+	$url = akimbo_crm_class_permalink($_POST['class'])."&message=success";
 	wp_redirect( $url ); 
 	exit;
 }
@@ -232,7 +287,7 @@ function crm_update_class_date_action(){
 	$wpdb->update( $table, $data, $where);
 	
 	$site = get_site_url();
-	$url = $site."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['id'];
+	$url = akimbo_crm_class_permalink($_POST['class'])."&message=success";
 	wp_redirect( $url ); 
 	exit;
 }
@@ -240,7 +295,6 @@ function crm_update_class_date_action(){
 function crm_delete_class_series(){
 	global $wpdb;
 	$table = $wpdb->prefix.'crm_class_list';
-	//$id = $_POST['class_id'];
 	$class = new Akimbo_Crm_Class($_POST['class_id']);
 	$series = $class->enrolment_related_classes('ids');
 	foreach($series as $class_id){

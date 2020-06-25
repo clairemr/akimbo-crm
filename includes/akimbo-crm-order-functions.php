@@ -131,39 +131,69 @@ function crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = "week
 
 function crm_get_order_available_passes($order, $product_ids = NULL){
 	global $wpdb;
-	$today = current_time('Y-m-d-h:ia');
 	$items = $order->get_items();
-	$item_info['order_id'] = $order->get_id();
-	foreach ( $items as $item_id => $item_data ) {
-		/*if($product_ids != NULL && !in_array($item_data['product_id'], $product_ids)){//ignore, only looking for current
-				$item_info['product'] = $item_data['product_id'];
-		}else{*/
-			if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
-				$item_info['passes'] = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
-				$item_info['pass_type'] = "sessions";
-			}elseif(isset($item_data['weeks'])){
-				$item_info['passes'] = $item_data['weeks'];
-				$item_info['pass_type'] = "weeks";
-			}
-			if(isset($item_info['passes'])){
-				$meta_key = $item_info['pass_type']."_used";
-				$item_info['used'] = (isset($item_data[$meta_key])) ? $item_data[$meta_key] : 0;
+	foreach($items as $item){
+		$item_info = crm_get_item_available_passes($item->get_id());
+	}
+	
+	return $item_info;
+}
+//prazushr@gmail.com Pragya 0406 601 284
+//function crm_get_item_available_passes($order, $items){//give array of items
+function crm_get_item_available_passes($item_id, $order = NULL){
+	global $wpdb;
+	/**
+	 * Get order info
+	 */
+	if($order == NULL){
+		$order_id = $wpdb->get_var("SELECT order_id FROM {$wpdb->prefix}woocommerce_order_items WHERE order_item_id = $item_id");
+		$order = wc_get_order($order_id);
+	}else{
+		$order_id = $order->get_id();
+	}
+	$item_info['user_id'] = $order->get_user_id();
+	if($order->get_status() != "pending"  && get_post_type($order_id) != "shop_subscription"){//don't show unpaid orders or subscriptions
+		/**
+		 * Check item availability and set info if available
+		 */
+		$item_info['available'] = false;
+		$item_info['TEST'] = $item_id;
+		$item_data = new WC_Order_Item_Product($item_id);
+		if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
+			$passes = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
+			$pass_type = "sessions";
+		}elseif(isset($item_data['weeks'])){
+			$passes = $item_data['weeks'];
+			$pass_type = "weeks";
+		}
+		if(isset($passes)){
+			$meta_key = $pass_type."_used";
+			$used = (isset($item_data[$meta_key])) ? $item_data[$meta_key] : 0;
+			$remaining = $passes - $used;
+			$expiry = crm_get_or_set_expiry($order, $item_id);
+			$available = ($remaining >= 1 && $expiry >= current_time('Y-m-d-h:ia')) ? true : false;
+			if($available){
+				$item_info['available'] = true;
+				$item_info['passes'] = $passes;
+				$item_info['pass_type'] = $pass_type;
+				$item_info['expiry'] = $expiry;
+				$item_info['used'] = $used;
 				$crm_passes_used = crm_calculate_passes_used($item_id);
 				if($crm_passes_used != $item_info['used']){
 					wc_update_order_item_meta($item_id, $meta_key, $crm_passes_used);
 					$item_info['used'] = $crm_passes_used;
 				}
-				$item_info['remaining'] = $item_info['passes'] - $item_info['used'];
-				$item_info['expiry'] = crm_get_or_set_expiry($order, $item_id);
-				$item_info['available'] = ($item_info['remaining'] >= 1 && $item_info['expiry'] >= $today) ? true : false;
+				$item_info['qty'] = $item_data['_qty'] ? $item_data['_qty'] : 1;
+				//not tested, added 9/6/2020
+				$item_info['remaining'] = ($passes * $item_info['qty']) - $item_info['used'];
 				$item_info['name'] = $item_data['name'];
 				$item_info['item_id'] = $item_id;
 				$item_info['product_id'] = $item_data['product_id'];
-				$item_info['qty'] = $item_data['_qty'];//not tested, added 9/6/2020
-			}else{//not a bookable item
-				$item_info['available'] = false;
+				
+				$item_info['order_id'] = $order_id;
 			}
-		//}
+		}else{//not a bookable item
+		}
 	}
 	return $item_info;
 }
