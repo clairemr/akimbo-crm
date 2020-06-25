@@ -2,6 +2,8 @@
   table {
     border-collapse: collapse;
     border: 1px solid black;
+    margin-top: 10px;
+    margin-bottom: 10px;
   }
   
   table, th, td {
@@ -22,3 +24,7 @@
   hr{
     margin: 20px;
     }
+  
+  p a {
+    font-style: italic;
+  }
