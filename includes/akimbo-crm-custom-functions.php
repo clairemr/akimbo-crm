@@ -125,6 +125,8 @@ function crm_date_setter_month($date){
 function crm_date_setter_week($date){
  	$date_setter['week_start'] = date("Y-m-d 0:00", strtotime('monday this week', strtotime($date)));
 	$date_setter['week_end'] = date("Y-m-d 23:59", strtotime('sunday this week', strtotime($date)));
+	$date_setter['last_week_start'] = date("Y-m-d 0:00", strtotime('monday last week', strtotime($date)));
+	$date_setter['last_week_end'] = date("Y-m-d 23:59", strtotime('sunday last week', strtotime($date)));
 	$date_setter['start'] = $date;
 	$date_setter['end'] = date("Y-m-d", strtotime('+7 days', strtotime($date)));
  	

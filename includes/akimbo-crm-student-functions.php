@@ -408,9 +408,9 @@ function akimbo_crm_admin_manual_enrolment(){
 	$admin_notice = "success";
 	
 	if(isset($_POST['url'])){
-		$url = get_site_url().$_POST['url'];
+		$url = $_POST['url'];
 	}else {
-		$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class_id'];
+		$url = akimbo_crm_class_permalink($_POST['class_id']);
 	}
 	
 	wp_redirect( $url ); 
@@ -421,33 +421,36 @@ function kids_class_enrolment(){//matched orders, where item_id is given
 	//update crm_attendance
 	global $wpdb;
 	$table = $wpdb->prefix.'crm_attendance';
-
+	/**
+	 * Get Student Info
+	 */
 	$student_id = $_POST['student_id'];
 	$student = new Akimbo_Crm_Student($student_id);
-	$student_name = $student->full_name();
+	/**
+	 * Get Class info
+	 */
 	$class = new Akimbo_Crm_Class($_POST['class_id']);
-	
 	$class_info = $class->get_class_info();
-	$attendance_array = $student->class_attendance($class_info->class_id, $class_info->semester_slug);//array of attended class ids
-	$classes = $class->enrolment_related_classes('all');//returns array of class objects or ids for that semester
+	$attendance_array = $student->class_attendance();//array of attended class ids
+	$classes = ($_POST['start_date'])? $class->enrolment_related_classes('all', $_POST['start_date']) : $class->enrolment_related_classes('all');
+	/**
+	 * Get pass info
+	 */
 	$item_id = $_POST['item_id'];
-	$qty = (wc_get_order_item_meta( $item_id, '_qty', true )) ? wc_get_order_item_meta( $item_id, '_qty', true ) : 1;
-	$weeks_used = (wc_get_order_item_meta( $item_id, 'weeks_used', true )) ? wc_get_order_item_meta( $item_id, 'weeks_used', true ) : 0;
-	$weeks = (wc_get_order_item_meta( $item_id, 'weeks', true )) ? wc_get_order_item_meta( $item_id, 'weeks', true ) : $class-> enrolment_related_classes_count();
-	/*$weeks = 4;
-	$weeks_used = 0;
-	$qty = 1;*/
-	$remaining = ($weeks*$qty)-$weeks_used;
+	$item_info = crm_get_item_available_passes($item_id);
+	$remaining = $item_info['remaining'];
 
 	foreach($classes as $enrol_class){
 		$data = array(
 		'class_list_id' => $enrol_class->class_id,
 		'user_id' => $_POST['customer_id'],
 		'student_id' => $student_id,
-		'student_name' => $student_name,
+		'student_name' => $student->full_name(),
 		);
-		//add check for start date
-		if(in_array($class->class_id, $attendance_array)){//student already enrolled, update order id if needed
+		/**
+		 * Attendance check not currently working
+		 */
+		if(in_array($enrol_class->class_id, $attendance_array)){//student already enrolled, update order id if needed
 			$att_order_id = $wpdb->get_var("SELECT ord_id FROM {$wpdb->prefix}crm_attendance WHERE student_id = '$student_id' AND class_list_id = '$class->class_id'"); 
 			if($att_order_id <= 0 && $remaining >=1){
 				$data['ord_id'] = $_POST['item_id'];
@@ -462,7 +465,6 @@ function kids_class_enrolment(){//matched orders, where item_id is given
 			$remaining = $remaining-1;
 			$result = $wpdb->insert($table, $data);
 			$x++;
-			
 		}
 		$finalclass = $enrol_class->class_id;
 		$enddate = $enrol_class->get_class_info()->session_date;
@@ -482,9 +484,7 @@ function kids_class_enrolment(){//matched orders, where item_id is given
 	}else{$message="error";}
 	
 	
-	
-	if($_POST['admin']){$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$finalclass."&message=".$message;
-	}else{$url = get_site_url()."/account";	}
+	$url = akimbo_crm_class_permalink($finalclass)."&message=".$message;
 	wp_redirect( $url ); 
 	exit;
 }
@@ -496,9 +496,8 @@ function kids_class_enrolment(){//matched orders, where item_id is given
  */
 
 //Unenrol single student, with attendance ID provided
-function crm_student_unenrol_button($att_id, $class_type, $url = NULL){
+function crm_student_unenrol_button($att_id, $class_type){
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
-		if($url != NULL){echo "<input type='hidden' name='url' value='".$url."'>";}
 		if($class_type != NULL){echo "<input type='hidden' name='class_type' value='".$class_type."'>";}
 		?><input type="hidden" name="att_id" value="<?php echo $att_id; ?>"> 
 		<input type="hidden" name="action" value="unenrol_button">
@@ -507,18 +506,15 @@ function crm_student_unenrol_button($att_id, $class_type, $url = NULL){
 }
 
 //Student dropdown list with unenrolment button. Takes an array of student objects
-function crm_admin_unenrolment_button($class_id, $student_list, $class_type = "casual", $url = NULL){
+function crm_admin_unenrolment_button($class_id, $student_list, $class_type = "casual"){
 	global $wpdb;
-	$url = ($url != NULL) ? $url : "/wp-admin/admin.php?page=akimbo-crm2&class=".$class_id ;
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
 	<select name= 'att_id'><option value="">Select student</option>
 	<?php foreach ($student_list as $student){ 
 		?><option value="<?php echo $student->att_id;?>"><?php echo $student->full_name(); ?></option><?php
 	} 
-
-	?>
-	</select> 
-	<input type="hidden" name="url" value="<?php echo $url; ?>">
+	?></select> 
+	<input type="hidden" name="class_id" value="<?php echo $class_id;?>">
 	<input type="hidden" name="class_type" value="<?php echo $class_type;?>">	
 	<input type="hidden" name="action" value="unenrol_button">
 	<input type="submit" name="submit" value="Unenrol">
@@ -541,9 +537,9 @@ function crm_unenrolment_process(){//early cancel
 
 	//redirect url
 	if(isset($_POST['url'])){
-		$url = get_site_url().$_POST['url'];
+		$url = $_POST['url'];
 	}elseif(isset($_POST['class_id'])){
-		$url = akimbo_crm_permalinks("classes", "link", NULL, array('class' => $_POST['class_id']));
+		$url = akimbo_crm_class_permalink($_POST['class_id']);
 	}else {$url = get_permalink( wc_get_page_id( 'myaccount' ) );}
 
 	//return pass if ord_id >1 & not late cancelled session
@@ -670,9 +666,8 @@ function admin_assign_order_id(){
 	wc_update_order_item_meta($item_id, $meta_key, $meta_value);
 		
 	$admin_notice = "success";
-	$site = get_site_url();
 	$ref = $_POST['referral_url'];
-	if($ref){$url = $site.$ref;}else{$url = $site."/wp-admin/admin.php?page=akimbo-crm2&class=".$_POST['class_id'];}
+	$url = ($ref != NULL) ? $ref : akimbo_crm_class_permalink($_POST['class_id']);
 	
 	wp_redirect( $url ); 
 	exit;

@@ -29,6 +29,7 @@ add_filter( 'wp_new_user_notification_email_admin', 'akimbo_crm_new_user_notific
 add_filter( 'login_redirect', 'crm_login_redirect', 10, 3 ); //replace Theme My Login redirect
 add_action('user_register', 'akimbo_crm_auto_add_user_as_student');
 add_action('woocommerce_created_customer', 'akimbo_crm_auto_add_user_as_student_woocommerce'); 
+add_action( 'admin_post_user_add_new_student', 'user_add_new_student_process' );
 
 function crm_user_name_from_id($id, $format = "first"){
 	global $wpdb;
@@ -269,6 +270,20 @@ function akimbo_crm_auto_add_user_as_student($user_id) {//automatically adds a n
 		);
 	
 	$wpdb->insert($table, $data);
+}
+
+function user_add_new_student_process(){
+	global $wpdb;
+	$first_name = $customer->get_first_name();
+	$table = $wpdb->prefix.'crm_students';
+	$data = array(
+		'user_id' => $_POST['user_id'],
+		'student_firstname' => $_POST['first_name'],
+		);
+	$wpdb->insert($table, $data);
+	$url = (isset($_POST['url'])) ? $_POST['url'] : akimbo_crm_permalinks("students");
+	wp_redirect( $url ); 
+	exit;
 }
 
 //function akimbo_crm_auto_add_user_as_student_woocommerce($customer_id, $new_customer_data, $password_generated) {//automatically adds a new student when user registers
