@@ -113,7 +113,7 @@ class Akimbo_Crm_Student{
 	}
 
 	function class_attendance($variation_id = NULL, $semester = NULL){
-		$attended_classes[] = array();
+		$attended_classes = array();
 		foreach($this->classes as $class){
 			$attended_classes[] = $class->list_id;
 		}

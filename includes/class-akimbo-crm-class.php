@@ -107,7 +107,7 @@ class Akimbo_Crm_Class{
 				$user_list[] = $student->get_user_id();
 				$email_list[] = $student->contact_email();
 				if($student->ord_id <= 1){
-					$unpaid_students[] = $student->student_id;
+					$unpaid_students[] = $student;
 				}
 			}
 

@@ -9,45 +9,13 @@
 Reference list
 **************
 
-casual_return_available_sessions($user_id): For a given user, returns sessions, order_id, item_id, product_id, available (sessions available), quantity, name (of the item) and used (sessions used)
-crm_show_available_sessions($user_id): Option values for select list. Usage: <select name="item_id"><?php crm_show_available_sessions($user_id); ?></select>
-auto_redirect_to_homepage_after_logout()
-
-Archive
-**************
-add_action('user_new_form', 'guest_user_order_management');
-function guest_user_order_management(){
-	echo "update orders";
-}
-
 
 */
 add_shortcode('userList', 'akimbo_user_dropdown_shortcode'); 
-add_action( 'wp_logout', 'auto_redirect_to_homepage_after_logout');
 add_filter( 'wp_new_user_notification_email', 'akimbo_crm_new_user_notification_email', 10, 3 );
-add_filter( 'wp_new_user_notification_email_admin', 'akimbo_crm_new_user_notification_email_admin', 10, 3 );
-add_filter( 'login_redirect', 'crm_login_redirect', 10, 3 ); //replace Theme My Login redirect
 add_action('user_register', 'akimbo_crm_auto_add_user_as_student');
 add_action('woocommerce_created_customer', 'akimbo_crm_auto_add_user_as_student_woocommerce'); 
 add_action( 'admin_post_user_add_new_student', 'user_add_new_student_process' );
-
-function crm_user_name_from_id($id, $format = "first"){
-	global $wpdb;
-	if($id == NULL){
-		$name = NULL;
-	}else{
-		$user_info = get_userdata($id);
-		switch($format){
-			case "first":
-				$name = $user_info->first_name;
-		    case "full":
-		        $name = $user_info->first_name." ".$user_info->last_name;
-		    case "display":
-		        $name = $user_info->display_name;
-		}
-	}
-	return $name;
-}
 
 function akimbo_user_dropdown_shortcode($var){
 	extract(shortcode_atts(array('name' => '', 'current' => '', 'role' => ''), $var));
@@ -70,38 +38,100 @@ function akimbo_user_dropdown($name, $current = NULL){
 	echo "</select>";
 }
 
-
-
-function user_edit_profile_link($user_id){
+function crm_select_available_user_orders($user_id, $name="item_id"){//$class_type = NULL <-- add check later
 	global $wpdb;
-	$link = get_site_url()."/wp-admin/user-edit.php?user_id=".$user_id;
-	return $link;
+	echo "<select name='".$name."'>";
+	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user_id,) );
+	$orders = $query->get_orders();
+	foreach ( $orders as $order ) {
+		$order_id = $order->get_id();;
+		$items = $order->get_items();
+		foreach ( $items as $item_id => $item_data ) {
+			$item_info = crm_get_item_available_passes($item_id, $order);
+			if($item_info['available'] == true){
+				?><option value="<?php echo $item_id;?>">
+				<?php echo $item_info['name'].": ".$item_info['remaining']." ".$item_info['pass_type']." remaining";
+				?></option><?php
+			}		
+		}
+	}	
+	?></select><?php
+}
+
+function akimbo_crm_new_user_notification_email( $wp_new_user_notification_email, $user, $blogname ) {
+	$message = sprintf(__('Hi %s,'), $user->display_name) . "\r\n\r\n";
+	$custom_message = get_option('crm_new_user_message');
+	$message .= __($custom_message). "\r\n\r\n";
+    $message .= __('To login, please set your password from the link below, using this email address as your user name.')."\r\n\r\n";
+	$message .= network_site_url("/wp-login.php?action=lostpassword") . "\r\n\r\n";
+	$message .= __('If you have any questions please let us know!') . "\r\n\r\n";
+	$message .= __('Regards,') . "\r\n\r\n";
+	$message .= $blogname."\r\n\r\n";
+
+    $wp_new_user_notification_email['message'] = $message;
+
+    return $wp_new_user_notification_email;
+
+}
+
+function akimbo_crm_auto_add_user_as_student($user_id) {//automatically adds a new student when user registers
+	global $wpdb;
+	//if($_POST['role'] == 'customer'){} <--maybe add this later
+	if(isset($_POST['first_name'])){
+		$first_name = $_POST['first_name'];
+	}else{
+		$user_info = get_userdata($user_id);
+      	$first_name = $user_info->first_name;
+	}
+	$table = $wpdb->prefix.'crm_students';
+	$data = array(
+		'user_id' => $user_id,
+		'student_rel' => 'user',
+		'student_firstname' => $first_name,
+		);
+	
+	$wpdb->insert($table, $data);
 }
 
 /**
- * Redirect non-admins to the homepage after logging into the site.
- *
- * @since 	1.0
+ * These functions may now be redundant from user class
  */
-function crm_login_redirect( $redirect_to, $request, $user  ) {
-	//wordpress defaults to sending users to admin dashboard
-	//https://codex.wordpress.org/Plugin_API/Filter_Reference/login_redirect
-	if (isset($user->roles) && is_array($user->roles)) {
-        if (in_array('subscriber', $user->roles)) {
-            $redirect_to =  home_url("/account");
-        } 
-		if (in_array('customer', $user->roles)) {
-            $redirect_to =  home_url("/account");
-        } 
-		if (in_array('author', $user->roles)) {
-            $redirect_to =  admin_url("/account");
-        } 
-    }
-    return $redirect_to;
+function user_add_new_student_process(){
+	global $wpdb;
+	$first_name = $customer->get_first_name();
+	$table = $wpdb->prefix.'crm_students';
+	$data = array(
+		'user_id' => $_POST['user_id'],
+		'student_firstname' => $_POST['first_name'],
+		);
+	$wpdb->insert($table, $data);
+	$url = (isset($_POST['url'])) ? $_POST['url'] : akimbo_crm_permalinks("students");
+	wp_redirect( $url ); 
+	exit;
+}
+
+//function akimbo_crm_auto_add_user_as_student_woocommerce($customer_id, $new_customer_data, $password_generated) {//automatically adds a new student when user registers
+function akimbo_crm_auto_add_user_as_student_woocommerce($customer_id) {//removed extra fields on 9/2/2020, throwing error because only 1 field passed
+	global $wpdb;
+	//if($_POST['role'] == 'customer'){} <--maybe add this later
+	//$user = get_user_by( 'id', $customer_id );
+	$customer = new WC_Customer( $customer_id );
+	$first_name = $customer->get_first_name();
+	$table = $wpdb->prefix.'crm_students';
+	$data = array(
+		'user_id' => $customer_id,
+		'student_rel' => 'user',
+		'student_firstname' => $first_name,
+		);
+	$wpdb->insert($table, $data);
 }
 
 
-function casual_return_available_sessions($user, $age = NULL){
+/**
+ * Archived functions
+ */
+
+ /*function casual_return_available_sessions($user, $age = NULL){
 	//get customer orders
 	$statuses = ['completed','processing'];
 	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user,'status' => $statuses) );
@@ -144,14 +174,14 @@ function casual_return_available_sessions($user, $age = NULL){
 		}
 	}
 	return $current_order;
-}
+}*/
 
 /**
  *
  * Option values for dropdown list. Usage: <select name="item_id"><?php crm_show_available_sessions($user_id); ?></select>
  * 
  */
-function crm_show_available_sessions($user_id){
+/*function crm_show_available_sessions($user_id){
 	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user_id,) );
 	$orders = $query->get_orders();
 	foreach ( $orders as $order ) {
@@ -169,78 +199,10 @@ function crm_show_available_sessions($user_id){
 			}
 		}
 	}	
-}
+}*/
 
-function crm_select_available_user_orders($user_id, $name="item_id"){//$class_type = NULL <-- add check later
-	global $wpdb;
-	echo "<select name='".$name."'>";
-	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user_id,) );
-	$orders = $query->get_orders();
-	foreach ( $orders as $order ) {
-		$order_id = $order->get_id();;
-		$items = $order->get_items();
-		foreach ( $items as $item_id => $item_data ) {
-			$product_id = $item_data ['product_id'];
-			$casual = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = 'pa_sessions'"); 
-			$enrolment = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}woocommerce_order_itemmeta WHERE order_item_id = '$item_id' AND meta_key = 'weeks'"); 
-			if($casual){
-				$sessions = $item_data['pa_sessions'];
-				$qty = $item_data['qty'];
-				$sessions_used = $item_data['sessions_used'];
-				$total = $sessions*$qty;
-				$remaining = ($sessions*$qty)-$sessions_used;
-				if(!$item_data['pa_sessions']){//$current_pricing = false;
-				} elseif($remaining < 1){//$current_pricing = false;
-				} else {
-					$current_products[] = $item_data['product_id'];
-					if (!$item_data['sessions_used']){$sessions_used = 0;$add_meta=true;}else{$sessions_used = $item_data['sessions_used'];}
-					?><option value="<?php echo $item_id;?>"><?php echo $item_data['name'].": ".$sessions_used."/".$total." sessions";?></option><?php
-				}
-			} elseif($enrolment){
-				$weeks = $item_data['weeks'];
-				$variation_id = $item_data['variation_id'];
-				if(!$weeks){
-					//$weeks = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation_id'");
-					$class_id = $wpdb->get_var("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$variation_id'");
-					$class = new Akimbo_Crm_Class($class_id);
-					$weeks = $class->enrolment_related_classes_count();
-					wc_update_order_item_meta($item_id, "weeks", $weeks);
-				}
-				$qty = $item_data['qty'];
-				$weeks_used = $item_data['weeks_used'];
-				$remaining = ($weeks*$qty)-$weeks_used;
-				if($remaining >=1){
-					echo "Unassigned classes: ".$item_data['name'].", ".$remaining." remaining";
-					?><option value="<?php echo $item_id; ?>"><?php echo $item_data['name'].", ".$remaining." remaining";?></option><?php
-				}
-			}else{//echo "<option value='0'> Order ".$order_id.": Not available for use</option>";//testing purposes
-			}
-		}
-	}	
-	?></select><?php
-}
-
-function auto_redirect_to_homepage_after_logout(){
-	$site = get_site_url();
-  wp_redirect( $site );
-  exit();
-}
-
-function akimbo_crm_new_user_notification_email( $wp_new_user_notification_email, $user, $blogname ) {
-    $message = sprintf(__('Hi %s,'), $user->display_name) . "\r\n\r\n";
-	$message .= __('To help simplify the transition from Mindbody, we have created a new account for you in Akimbo CRM with the details from your previous account. If you have a moment, please log in and check your account details have been imported correctly. Next time you book a class or workshop at Circus Akimbo, you’ll need to use the new system.'). "\r\n\r\n";
-    $message .= __('To login, please set your password from the link below, using this email address as your user name.')."\r\n\r\n";
-	$message .= network_site_url("/wp-login.php?action=lostpassword") . "\r\n\r\n";
-	$message .= __('If you have any questions please let me know!') . "\r\n\r\n";
-	$message .= __('Cheers, Claire') . "\r\n\r\n";
-
-    $wp_new_user_notification_email['message'] = $message;
-
-    return $wp_new_user_notification_email;
-
-}
-
-function akimbo_crm_new_user_notification_email_admin($wp_new_user_notification_email, $user, $blogname) {
+//add_filter( 'wp_new_user_notification_email_admin', 'akimbo_crm_new_user_notification_email_admin', 10, 3 );
+/*function akimbo_crm_new_user_notification_email_admin($wp_new_user_notification_email, $user, $blogname) {
 
     $user_count = count_users();
 
@@ -251,53 +213,4 @@ function akimbo_crm_new_user_notification_email_admin($wp_new_user_notification_
 
     return $wp_new_user_notification_email;
 
-}
-
-function akimbo_crm_auto_add_user_as_student($user_id) {//automatically adds a new student when user registers
-	global $wpdb;
-	//if($_POST['role'] == 'customer'){} <--maybe add this later
-	if(isset($_POST['first_name'])){
-		$first_name = $_POST['first_name'];
-	}else{
-		$user_info = get_userdata($user_id);
-      	$first_name = $user_info->first_name;
-	}
-	$table = $wpdb->prefix.'crm_students';
-	$data = array(
-		'user_id' => $user_id,
-		'student_rel' => 'user',
-		'student_firstname' => $first_name,
-		);
-	
-	$wpdb->insert($table, $data);
-}
-
-function user_add_new_student_process(){
-	global $wpdb;
-	$first_name = $customer->get_first_name();
-	$table = $wpdb->prefix.'crm_students';
-	$data = array(
-		'user_id' => $_POST['user_id'],
-		'student_firstname' => $_POST['first_name'],
-		);
-	$wpdb->insert($table, $data);
-	$url = (isset($_POST['url'])) ? $_POST['url'] : akimbo_crm_permalinks("students");
-	wp_redirect( $url ); 
-	exit;
-}
-
-//function akimbo_crm_auto_add_user_as_student_woocommerce($customer_id, $new_customer_data, $password_generated) {//automatically adds a new student when user registers
-function akimbo_crm_auto_add_user_as_student_woocommerce($customer_id) {//removed extra fields on 9/2/2020, throwing error because only 1 field passed
-	global $wpdb;
-	//if($_POST['role'] == 'customer'){} <--maybe add this later
-	//$user = get_user_by( 'id', $customer_id );
-	$customer = new WC_Customer( $customer_id );
-	$first_name = $customer->get_first_name();
-	$table = $wpdb->prefix.'crm_students';
-	$data = array(
-		'user_id' => $customer_id,
-		'student_rel' => 'user',
-		'student_firstname' => $first_name,
-		);
-	$wpdb->insert($table, $data);
-}
+}*/

@@ -83,12 +83,6 @@ class Akimbo_Crm_User extends WP_User{
 		return $select;
 	}
 
-	function add_student(){
-
-		
-		return $this->firstname;
-	}
-
 	function get_firstname(){
 		return $this->firstname;
 	}
@@ -96,8 +90,9 @@ class Akimbo_Crm_User extends WP_User{
 	function get_user_subscriptions($age = NULL){
 		global $wpdb;
 		$age = ($age != NULL) ? $age : "adult";
-		$option = 'akimbo_crm_'.$age.'_class_products';
-		$product_ids = get_option($option);		
+		$product_ids = akimbo_crm_get_product_ids_by_age($age_slug);
+		/*$option = 'akimbo_crm_'.$age.'_class_products';
+		$product_ids = get_option($option);	*/	
 
 		$users_subscriptions = wcs_get_users_subscriptions($this->user_id);
 		//currently will only work for one subscription, check for multiple subscription behaviour
@@ -148,8 +143,9 @@ class Akimbo_Crm_User extends WP_User{
 	function available_orders($age = NULL){
 		global $wpdb;
 		$age = ($age != NULL) ? $age : "adult";
-		$option = 'akimbo_crm_'.$age.'_class_products';
-		$product_ids = get_option($option);
+		$product_ids = akimbo_crm_get_product_ids_by_age($age_slug);
+		/*$option = 'akimbo_crm_'.$age.'_class_products';
+		$product_ids = get_option($option);	*/
 		$order_info['options'] = $product_ids;
 		$today = current_time('Y-m-d-h:ia');
 		$statuses = ['completed','processing'];
@@ -162,55 +158,10 @@ class Akimbo_Crm_User extends WP_User{
 			$items = $crm_order->get_items();
 			foreach ( $items as $item_id => $item_data ) {
 				if(in_array($item_data['product_id'], $product_ids)){
-					$order_info['product_id'] = $item_data['product_id'];
-					
-					if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
-						$order_info['sessions'] = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
-						$order_info['passes'] = $order_info['sessions'];//allows sessions & weeks to be used interchangeably
-						$order_info['sessions_used'] = (isset($item_data['sessions_used'])) ? $item_data['sessions_used'] : 0;
-						$order_info['remaining'] = $order_info['sessions'] - $order_info['sessions_used'];
-						$order_info['product_id'] = $item_data['product_id'];
-						if($order_info['remaining'] >= 1 ){
-							$order_info['type'] = "casual";
-							$order_info['order_id'] = $order_id;
-							$order_info['product_id'] = $item_data['product_id'];
-							$order_info['item_id'] = $item_id;
-							$exp_date = $order->get_meta('expiry_date');
-							if($exp_date <= 0){
-								$year = date("Y", strtotime($crm_order->order_date)) + 1;
-								$format = $year."-m-d-h:ia";
-								$exp_date = date($format, strtotime($crm_order->order_date));
-							}
-							$order_info['expiry'] = $exp_date;
-							$order_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$order_info['$order_id']."/'>View Order</a>";	
-							return $order_info;
-							break;//use the first available order with remaining sessions
-						}
-						
-					}elseif(isset($item_data['weeks'])){
-						$order_info['weeks'] = $item_data['weeks'];
-						$order_info['passes'] = $order_info['weeks'];//allows sessions & weeks to be used interchangeably
-						$order_info['weeks_used']= (isset($item_data['weeks_used'])) ? $item_data['weeks_used'] : 0;
-						$order_info['remaining'] = $order_info['weeks'] - $order_info['weeks_used'];
-						if($order_info['remaining'] >= 1 ){
-							$order_info['type'] = "enrolment";
-							$order_info['order_id'] = $order_id;
-							$order_info['product_id'] = $item_data['product_id'];
-							$order_info['item_id'] = $item_id;
-							$exp_date = $order->get_meta('expiry_date');
-							if($exp_date <= 0){
-								$year = date("Y", strtotime($crm_order->order_date)) + 1;
-								$format = $year."-m-d-h:ia";
-								$exp_date = date($format, strtotime($crm_order->order_date));
-							}
-							$order_info['expiry'] = $exp_date;
-							$order_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$order_info['$order_id']."/'>View Order</a>";	
-							return $order_info;
-							break;//use the first available order with remaining weeks
-						}
-					}
-
-					
+					$order_info = crm_get_item_available_passes($item_id, $order);
+					if($order_info['available'] == true){
+						break;//use the first available order with remaining sessions
+					}					
 				}		
 			}
 		}
