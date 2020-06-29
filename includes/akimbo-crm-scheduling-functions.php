@@ -132,11 +132,20 @@ function product_details_call( $post ) {
 	if(isset($details['is_casual'])){echo "checked";}
 	echo " >Casual Class. ";
 	
-	
 	if(isset($details['is_bookable'])){
 		$product_id = get_the_ID();
 		$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
 		echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "";
+		echo "<br/>Age Groups: <select name='age_slug'>";
+		if(isset($details['age_slug'])){
+			echo "<option value='".$details['age_slug'][0]."'>".ucwords($details['age_slug'][0])."</option><option>***</option>";
+		} 
+		echo "<option value='kids'>Kids</option>
+			<option value='adult'>Adult</option>
+			<option value='playgroup'>Playgroup</option>
+			<option value='private'>Private</option>
+			</select>";
 		$trial_product = (isset($details['trial_product'])) ? $details['trial_product'][0] : 0;
 		echo "<br/>Trial Product: <input type='number' value='".$trial_product."' name='trial_product'>";
 		$args = array(
@@ -176,7 +185,10 @@ function product_details_save($post_id){
     if (array_key_exists('duration', $_POST)) {
         update_post_meta($post_id,'duration', $_POST['duration']);
     }
-    if (array_key_exists('trial_product', $_POST)) {
+    if (array_key_exists('age_slug', $_POST)) {
+        update_post_meta($post_id,'age_slug', $_POST['age_slug']);
+    }
+	if (array_key_exists('trial_product', $_POST)) {
         update_post_meta($post_id,'trial_product', $_POST['trial_product']);
     }
     if (array_key_exists('start_time', $_POST)) {
@@ -261,7 +273,7 @@ function add_new_schedule(){
 		$class_name = get_the_title($_POST['product_id']);
 		$details = get_post_meta($_POST['product_id']);
 		$duration = $details['duration'][0];
-		$age_slug = "kids";//$details['age_slug'][0];
+		$age_slug = $details['age_slug'][0];
 		$trial_product = get_post_meta($_POST['product_id'], 'trial_product', true );
 		$prod_id = (isset($trial_product)) ? serialize(array($_POST['product_id'], $trial_product)) : serialize(array($_POST['product_id']));
 		$class_id = (isset($_POST['class_id'])) ? $_POST['class_id'] : $_POST['product_id'];
