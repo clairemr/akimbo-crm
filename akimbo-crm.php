@@ -232,11 +232,23 @@ class AkimboCRM {
    		$args = array('type' => 'string','sanitize_callback' => 'sanitize_text_field',);
    		add_option( 'akimbo_crm_account_message', 'Welcome to your account dashboard.');
    		register_setting( 'akimbo_crm_options', 'akimbo_crm_account_message', $args );
-   		add_option( 'akimbo_crm_order_message', 'Thanks for ordering with us!');
+		add_option( 'akimbo_crm_order_message', 'Thanks for ordering with us!');
+		register_setting( 'akimbo_crm_options', 'akimbo_crm_new_user_message', $args );
+   		add_option( 'akimbo_crm_new_user_message', 'A new account has been created for you with Akimbo CRM!');
    		register_setting( 'akimbo_crm_options', 'akimbo_crm_order_message', $args );
    		add_option( 'akimbo_crm_class_booking_window', '-24hrs');
 		register_setting( 'akimbo_crm_options', 'akimbo_crm_class_booking_window', $args );
-		   
+		
+		/**
+		 * 	
+		*'To help simplify the transition from Mindbody, 
+		we have created a new account for you in Akimbo CRM 
+		with the details from your previous account. 
+		If you have a moment, please log in and check your 
+		account details have been imported correctly. Next 
+		time you book a class or workshop at Circus Akimbo, you’ll need to use the new system.
+		 */
+
 		//Class products//remove in 2.1
    		/*add_option( 'akimbo_crm_adult_class_products', 'a:2:{i:0;i:308;i:1;i:227;}');
    		register_setting( 'akimbo_crm_product_options', 'akimbo_crm_adult_class_products', $args );
@@ -249,7 +261,8 @@ class AkimboCRM {
 		//Payroll settings
 		//akimbo_crm_pay_day
 		add_option( 'akimbo_crm_pay_day', 'Thursday');
-   		register_setting( 'akimbo_crm_business_options', 'akimbo_crm_pay_day', $args );
+		   register_setting( 'akimbo_crm_business_options', 'akimbo_crm_pay_day', $args );
+		   
 
 	}
 
@@ -263,6 +276,8 @@ class AkimboCRM {
 			<td><input type="text" id="akimbo_crm_account_message" name="akimbo_crm_account_message" value="<?php echo get_option('akimbo_crm_account_message'); ?>" size="50"/></td></tr>
 			<tr valign="top"><th scope="row"><label for="akimbo_crm_order_message">Order Message</label></th>
 			<td><input type="text" id="akimbo_crm_order_message" name="akimbo_crm_order_message" value="<?php echo get_option('akimbo_crm_order_message'); ?>" size="50"/></td></tr>
+			<tr valign="top"><th scope="row"><label for="akimbo_crm_new_user_message">New User Email</label></th>
+			<td><input type="text" id="akimbo_crm_new_user_message" name="akimbo_crm_new_user_message" value="<?php echo get_option('akimbo_crm_new_user_message'); ?>" size="50"/></td></tr>
 			<tr valign="top"><th scope="row"><label for="akimbo_crm_class_booking_window">Booking Window</label></th>
 			<td><input type="text" id="akimbo_crm_class_booking_window" name="akimbo_crm_class_booking_window" value="<?php echo get_option('akimbo_crm_class_booking_window'); ?>" size="50"/></td></tr>
 			</table><?php  submit_button(); ?></form></div><?php
