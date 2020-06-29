@@ -109,7 +109,7 @@ function akimbo_crm_manage_classes_details($class_id){
 			echo apply_filters('manage_classes_attendance_table_title', "<h2>Update Order IDs</h2>");
 			foreach($unpaid_students as $unpaid_student){
 				echo $unpaid_student->full_name();
-				$url = "/wp-admin/admin.php?page=akimbo-crm&class=".$class_id;
+				$url = akimbo_crm_class_permalink($class_id);
 				$unpaid_student->update_unpaid_classes($unpaid_student->att_id, $class_id, $url);
 			}				
 		}
@@ -219,7 +219,7 @@ function akimbo_crm_admin_manual_enrolment_button($class_id, $student_list, $cla
 	<input type="hidden" name="class" value="<?php echo $class_id;?>">
 	<input type="hidden" name="type" value="<?php echo $class_type;?>">
 	<input type="hidden" name="age" value="<?php echo $age;?>">
-	<input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm&class=<?php echo $class_id;?>"><?php
+	<input type="hidden" name="url" value="<?php echo akimbo_crm_class_permalink($class_id);?>"><?php
 	if($class_type == "casual"){
 		?><input type="hidden" name="action" value="update_casual_enrolment"><input type="hidden" name="order" value="0"><?php //student functions
 	}else{
@@ -286,7 +286,6 @@ function crm_update_class_date_action(){
 	$data = array('session_date' => $new_date, 'duration' => $_POST['duration']);
 	$wpdb->update( $table, $data, $where);
 	
-	$site = get_site_url();
 	$url = akimbo_crm_class_permalink($_POST['class'])."&message=success";
 	wp_redirect( $url ); 
 	exit;
@@ -306,8 +305,12 @@ function crm_delete_class_series(){
 			$wpdb->delete( $table, array( 'list_id' => $class_id,) );			
 		}
 	}
-	$url = akimbo_crm_permalinks("classes");
-	if(isset($update_id)){$url .= "&class=".$update_id."&message=error";}
+	
+	if(isset($update_id)){
+		$url = akimbo_crm_class_permalink($update_id)."&message=error";
+	}else{
+		$url = akimbo_crm_permalinks("classes");
+	}
 	wp_redirect( $url ); 
 	exit;	
 }

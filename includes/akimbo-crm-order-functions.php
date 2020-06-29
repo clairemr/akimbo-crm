@@ -32,6 +32,31 @@ crm_update_weeks_or_sessions($item_id)//admin update form, currently on enrolmen
 
 */
 
+/**
+ * New in 2.1
+ * wp_list_pluck is my new favourite thing
+ */
+
+function akimbo_crm_get_product_ids_by_age($age_slug){
+	$args = array ( 
+		'post_type'  => 'product',
+		'posts_per_page'  => -1,
+		'meta_query' => array( 
+			array( 
+			 'key' => 'age_slug', 
+			 'value' => $age_slug,
+			), 
+		  ),
+		); 
+	$query = new WP_Query( $args );
+	if ( $query->have_posts() ){
+		$products = wp_list_pluck( $query->posts, "ID");
+	}
+	return $products;
+}
+
+
+
 
 add_filter( 'manage_edit-shop_order_columns', 'akimbo_crm_add_order_items_column_header', 20 );//add items column header
 add_action( 'manage_shop_order_posts_custom_column', 'akimbo_crm_add_order_items_column_content' );//Add items column to order posts page
@@ -138,7 +163,9 @@ function crm_get_order_available_passes($order, $product_ids = NULL){
 	
 	return $item_info;
 }
-//prazushr@gmail.com Pragya 0406 601 284
+
+
+
 //function crm_get_item_available_passes($order, $items){//give array of items
 function crm_get_item_available_passes($item_id, $order = NULL){
 	global $wpdb;
@@ -152,12 +179,11 @@ function crm_get_item_available_passes($item_id, $order = NULL){
 		$order_id = $order->get_id();
 	}
 	$item_info['user_id'] = $order->get_user_id();
-	if($order->get_status() != "pending"  && get_post_type($order_id) != "shop_subscription"){//don't show unpaid orders or subscriptions
+	if($order->get_status() != "pending"  && get_post_type($order_id) != "shop_subscription"){//don't show unpaid orders or parent subscriptions
 		/**
 		 * Check item availability and set info if available
 		 */
 		$item_info['available'] = false;
-		$item_info['TEST'] = $item_id;
 		$item_data = new WC_Order_Item_Product($item_id);
 		if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
 			$passes = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
@@ -173,24 +199,31 @@ function crm_get_item_available_passes($item_id, $order = NULL){
 			$expiry = crm_get_or_set_expiry($order, $item_id);
 			$available = ($remaining >= 1 && $expiry >= current_time('Y-m-d-h:ia')) ? true : false;
 			if($available){
-				$item_info['available'] = true;
-				$item_info['passes'] = $passes;
-				$item_info['pass_type'] = $pass_type;
-				$item_info['expiry'] = $expiry;
+				/**
+				 * Check pass quantities are accurate
+				 */
 				$item_info['used'] = $used;
 				$crm_passes_used = crm_calculate_passes_used($item_id);
 				if($crm_passes_used != $item_info['used']){
 					wc_update_order_item_meta($item_id, $meta_key, $crm_passes_used);
 					$item_info['used'] = $crm_passes_used;
 				}
-				$item_info['qty'] = $item_data['_qty'] ? $item_data['_qty'] : 1;
-				//not tested, added 9/6/2020
-				$item_info['remaining'] = ($passes * $item_info['qty']) - $item_info['used'];
-				$item_info['name'] = $item_data['name'];
-				$item_info['item_id'] = $item_id;
-				$item_info['product_id'] = $item_data['product_id'];
 				
+				/**
+				 * Return available order information
+				 */
+				$item_info['available'] = true;
+				$item_info['expiry'] = $expiry;
+				$item_info['item_id'] = $item_id;
+				$item_info['name'] = $item_data['name'];
 				$item_info['order_id'] = $order_id;
+				$item_info['passes'] = $passes;
+				$item_info['pass_type'] = $pass_type;
+				$item_info['product_id'] = $item_data['product_id'];
+				$item_info['qty'] = $item_data->get_quantity(); // ? $item_data['_qty'] : 1;
+				$item_info['remaining'] = ($passes * $item_info['qty']) - $item_info['used'];
+				$item_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$item_info['$order_id']."/'>View Order</a>";	
+				//$order_info['type'] = "casual";
 			}
 		}else{//not a bookable item
 		}

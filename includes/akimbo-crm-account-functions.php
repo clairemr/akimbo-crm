@@ -10,19 +10,40 @@
 * Account Dashboard
 *
 *********************************************************************************************************************************/
-add_filter( 'woocommerce_account_menu_items', 'crm_account_menu_items', 10, 1 );
+add_filter( 'login_redirect', 'akimbo_crm_login_redirect', 10, 3 );
+add_action( 'wp_logout', 'akimbo_crm_logout_redirect');
+add_filter( 'woocommerce_account_menu_items', 'akimbo_crm_account_menu_items', 10, 1 );
 add_action( 'init', 'akimbo_crm_add_my_account_endpoint' );
 add_action( 'woocommerce_account_students_endpoint', 'akimbo_crm_students_endpoint_content' );
 add_action( 'woocommerce_account_badges_endpoint', 'akimbo_crm_badges_endpoint_content' );
-add_action('woocommerce_account_dashboard', 'crm_dashboard');
+add_action('woocommerce_account_dashboard', 'akimbo_crm_account_dashboard');
 add_shortcode('simpleTimetable', 'user_timetable_simple'); //[simpleTimetable age='adults']
 add_shortcode('trialTimetable', 'user_timetable_trial'); //[trialTimetable age='adults']
-add_shortcode('RAFreferralCode', 'akimbo_raf_referral_code'); //[RAFreferralCode]
+add_shortcode('RAFreferralCode', 'akimbo_crm_raf_referral_code'); //[RAFreferralCode]
+
+/**
+ * Redirect non-admins to account page after logging in
+ */
+function akimbo_crm_login_redirect( $redirect_to, $request, $user  ) {
+	if (isset($user->roles)) {
+		$redirect_to = (user_can( $user, 'upload_files')) ? admin_url() : get_permalink( get_option('woocommerce_myaccount_page_id') );
+    }
+    return $redirect_to;
+}
+
+/**
+ * Redirect to home page after logging out
+ */
+function akimbo_crm_logout_redirect(){
+	$site = get_site_url();
+	wp_redirect( $site );
+	exit();
+}
 
 /*
 * Add students & badges as menu items
 */
-function crm_account_menu_items( $items ) {
+function akimbo_crm_account_menu_items( $items ) {
 	unset( $items[ 'customer-logout' ] );
     $items['students'] = __( 'Students', 'crm' );
 	$items['badges'] = __( 'Badges', 'crm' );
@@ -42,7 +63,7 @@ function akimbo_crm_add_my_account_endpoint() {
 /*
 * Dashboard display
 */
-function crm_dashboard(){
+function akimbo_crm_account_dashboard(){
 	global $wpdb;
 	$user_id = get_current_user_id();
 	$user = new Akimbo_Crm_User(get_current_user_id());
@@ -58,7 +79,10 @@ function crm_dashboard(){
 	echo "<h2>Upcoming ".ucwords($age)." Classes</h2>";
 	echo "<i>Student: ".$student->first_name()."</i><br/>";
 	$user->display_user_orders_account($age);
+	$products = akimbo_crm_get_product_ids_by_age($age);
+	var_dump($products);
 	crm_bookable_timetable($age, 14, $user, $student);
+	
 }
 
 /*
@@ -187,21 +211,19 @@ function user_timetable_trial($atts){
 	return $content;
 }
 
-function akimbo_raf_referral_code($atts){//$page = null
+function akimbo_crm_raf_referral_code($atts){//$page = null
 	//based on plugins/refer-a-friend-for-woocommerce-by-wpgens/public/class-gens-raf-public.php 
 	extract(shortcode_atts(array('page' => ''), $atts));
-	
-	if(!$page){$url = get_site_url();}else{
-		$url = get_site_url().$page;
-	}
 	$user_id = get_current_user_id();
-	if ( !$user_id ) {
+	$referral_id = get_user_meta($user_id, "gens_referral_id", true);
+	if ( !$user_id || !$referral_id ) {
+		$content = NULL;
 	} else {
-		$referral_id = get_user_meta($user_id, "gens_referral_id", true);
+		$url = (!$page) ? get_site_url() : get_site_url().$page;
+		$refLink = esc_url(add_query_arg( 'raf', $referral_id, $url )); 
+		$content = "<a href='".$refLink."'>".$refLink."</a>";
 	}
-	$refLink = esc_url(add_query_arg( 'raf', $referral_id, $url )); 
-	$content = "<a href='".$refLink."'>".$refLink."</a>";
-
+	
 	return $content;
 }
  
