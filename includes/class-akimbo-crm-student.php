@@ -55,15 +55,6 @@ class Akimbo_Crm_Student{
 		return $full_name;
 	}
 
-	function student_list_display($admin = false){
-		if($admin == true){
-			echo $this->full_name().". ".$this->student_admin_link("View")."<br/>";
-		}else{
-			echo $this->full_name().". ".$this->student_account_link("View")."<br/>";
-		}
-		
-	}
-
 	function get_age(){
 		return $this->age;
 		//return "adults";

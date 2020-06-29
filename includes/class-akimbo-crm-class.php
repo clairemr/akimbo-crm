@@ -91,7 +91,7 @@ class Akimbo_Crm_Class{
 	function get_student_info($student_id = NULL){
 		global $wpdb;
 		if($student_id == NULL){
-			$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE class_list_id = '$this->class_id'");
+			$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE class_list_id = '$this->class_id' ORDER BY student_name");
 			foreach ($students as $result){
 				$student = new Akimbo_Crm_Student($result->student_id);
 				$student->{'att_id'} = $result->attendance_id;

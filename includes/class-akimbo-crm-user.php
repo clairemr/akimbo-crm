@@ -24,17 +24,14 @@ class Akimbo_Crm_User extends WP_User{
 		$this->user_id = $user_id;
 		parent::__construct( $user_id );
 		$student_ids = $wpdb->get_results("SELECT student_id,student_rel FROM {$wpdb->prefix}crm_students WHERE user_id = $user_id");
-		//$this->userdata = get_userdata( $user_id );//
 		$this->metadata = get_user_meta( $user_id );
 		$this->firstname = $this->metadata['first_name'][0];//for some reason first_name is an array
-		//fix user first name display, then use it in automatically adding student function. Then make code live on site
-
 		if(isset($student_ids)){
 			foreach($student_ids as $student_id){
 				if($student_id->student_rel == 'user'){$this->user_student_id = $student_id->student_id;}
 				$this->student_ids .= $student_id->student_id;
 			}
-		}else{
+		}else{//add new user student
 			$previous_student = $wpdb->get_var("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_id DESC LIMIT 1");
 			$table = $wpdb->prefix.'crm_students';
 			$data = array('student_firstname' => $customer->first_name,'student_rel' => 'user','user_id' => $user_id,);
@@ -48,13 +45,16 @@ class Akimbo_Crm_User extends WP_User{
 		global $wpdb;
 		if(isset($this->user_student_id)){//student_rel == user
 			$id = $this->user_student_id;
-		}elseif(isset($this->student_ids)){//defaults first student to user
-			$id = $this->student_ids[0];
+		}elseif(isset($this->student_ids)){
+			/* Construct function should automatically add new user student, making everything below
+			* this mostly redundant, but it's here as a back up
+			*/
+			$id = $this->student_ids[0];//defaults first student to user
 			$table = $wpdb->prefix.'crm_students';
 			$data = array('student_rel' => 'user',);
 			$data = array('student_id' => $id,);
 			update( $table, $data, $where);
-		}else{//automatically add new student
+		}else{//add new student
 			$id = $wpdb->get_var("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_id DESC LIMIT 1 ") + 1;
 			akimbo_crm_auto_add_user_as_student($this->user_id, $this->firstname);
 		}
@@ -70,14 +70,9 @@ class Akimbo_Crm_User extends WP_User{
 	
 	function get_user_subscriptions($age = NULL){
 		global $wpdb;
-		
-		//$age = ($age < 0) ? $age : "adult";
-		/*$option = 'akimbo_crm_'.$age.'_class_products';
-		$product_ids = get_option($option);*/
 		$age = ($age != NULL) ? $age : "adult";
 		$option = 'akimbo_crm_'.$age.'_class_products';
-		$product_ids = get_option($option);
-		
+		$product_ids = get_option($option);		
 
 		$users_subscriptions = wcs_get_users_subscriptions($this->user_id);
 		//currently will only work for one subscription, check for multiple subscription behaviour
@@ -119,21 +114,6 @@ class Akimbo_Crm_User extends WP_User{
 						$subscription_info['next'] = $subscription->get_date( 'next_payment' );
 					}			
 				}
-				/*if(!isset($subscription_info['product_id'])){//might not want this?
-					foreach($orders as $order){
-						$items = $order->get_items();
-						foreach ( $items as $item_id => $item_data ) {
-							if(in_array($item_data['product_id'], $product_ids)){
-								$subscription_info['product_id'] .= $item_data['product_id'];
-								$subscription_info['item_id'] .= $item_id;
-								$subscription_info['sessions'] .= (isset($item_data['pa_sessions'])) ? $item_data['pa_sessions'] : $item_data['sessions'];
-							}			
-						}
-						if(isset($subscription_info['product_id'])){break;}
-					}
-				}*/
-				
-
 			}			  
 		}
 		
@@ -149,7 +129,6 @@ class Akimbo_Crm_User extends WP_User{
 		$today = current_time('Y-m-d-h:ia');
 		$statuses = ['completed','processing'];
 		$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $this->user_id,'status' => $statuses) );
-		//$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $this->user_id,) );
 		$orders = $query->get_orders();
 		foreach ( $orders as $order ) {
 			$order_id = $order->get_id();
@@ -210,42 +189,8 @@ class Akimbo_Crm_User extends WP_User{
 				}		
 			}
 		}
-
-
-		/*foreach ( $orders as $order ) {
-			$order_info['$order_id'] = $order->get_id();
-
-			$crm_order = wc_get_order($order_info['$order_id']);
-			$exp_date = $order->get_meta('expiry_date');
-			if($exp_date <= 0){
-				$year = date("Y", strtotime($crm_order->order_date)) + 1;
-				$format = $year."-m-d-h:ia";
-				$exp_date = date($format, strtotime($crm_order->order_date));
-			}
-			$items = $crm_order->get_items();
-			foreach ( $items as $item_id => $item_data ) {
-				if(in_array($item_data['product_id'], $product_ids)){
-					$order_info['product_id'] = $item_data['product_id'];
-					$order_info['item_id'] = $item_id;
-					if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
-						$order_info['sessions'] = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
-						$order_info['sessions_used']= (isset($item_data['sessions_used'])) ? $item_data['sessions_used'] : 0;
-						$order_info['type'] = "casual";
-					}elseif(isset($item_data['weeks'])){
-						$order_info['weeks'] = $item_data['weeks'];
-						$order_info['weeks_used']= (isset($item_data['weeks_used'])) ? $item_data['weeks_used'] : 0;
-						$order_info['type'] = "enrolment";
-					}
-					
-					$order_info['expiry'] = $exp_date;
-				}		
-			}
-			$order_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$order_info['$order_id']."/'>View Order</a>";			
-		}*/
 		
 		return $order_info;
-		
-		//return $exp_date;
 	}
 
 	function user_admin_link($display = NULL){//text to display or link only
