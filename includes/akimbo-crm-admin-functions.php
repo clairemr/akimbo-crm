@@ -17,17 +17,27 @@ akimbo-crm
 
 */
 
+add_action( 'admin_enqueue_scripts', 'load_admin_style' );
+function load_admin_style() {
+	wp_enqueue_script( 'admin_css', plugin_dir_url( __FILE__ ) . '/includes/admin-style.css', array(), '1.0' );
+  //wp_enqueue_style( 'admin_css', get_template_directory_uri() . '/css/admin-style.css', false, '1.0.0' );
+ }
+
+
+
 add_action( 'wp_dashboard_setup', 'crm_add_dashboard_widgets' );
 
 /**
  * Add a widget to the dashboard. Hooked into the 'wp_dashboard_setup' action above.
  */
 function crm_add_dashboard_widgets() {
-	wp_add_dashboard_widget(
-     'crm_dashboard_widget',         // Widget slug.
-     'Akimbo CRM',         // Title.
-     'crm_dashboard_widget_function' // Display function.
-    );	
+	if(current_user_can('upload_files')){//only visible to author level and above
+		wp_add_dashboard_widget(
+			'crm_dashboard_widget',         // Widget slug.
+			'Akimbo CRM',         // Title.
+			'crm_dashboard_widget_function' // Display function.
+		);	
+	}
 }
 
 /**
@@ -45,6 +55,15 @@ function crm_dashboard_widget_function() {
 	}
 }
 
+function akimbo_crm_class_permalink($class_id = NULL, $display = NULL){
+	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=classes";
+	$url = ($class_id != NULL) ? $url."&class=".$class_id : $url;
+	if($display != NULL){
+		$url = "<a href='".$url."'>".$display."</a>";
+	}
+	return $url;
+}
+
 function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args = NULL){
 	switch($permalink){
 	    case "home": 
@@ -52,7 +71,8 @@ function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args
 	    	$text = ($text != NULL) ? $text : "Home";
 	    break;
 	    case "classes":
-	   		$page = "akimbo-crm2";
+			$page = "akimbo-crm";
+			$tab = "classes";
 	    	$text = ($text != NULL) ? $text : "Manage Classes"; 
 	    break;
 	    case "payroll":  
@@ -61,13 +81,24 @@ function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args
 	    	$text = ($text != NULL) ? $text : "Payroll"; 
 	    break;
 	    case "bookings":
-	    	$page = "akimbo-crm4";
+			$page = "akimbo-crm2";
+			$tab = "bookings";
 	    	$text = ($text != NULL) ? $text : "Manage Bookings"; 
 	    break;
 	    case "students":  
 	    	$page = "akimbo-crm";
 	    	$tab = "details";
 	    	$text = ($text != NULL) ? $text : "Student Info"; 
+		break;
+		case "add student":  
+	    	$page = "akimbo-crm";
+			$tab = "details";
+			$args = array("student" => "new");
+			$text = ($text != NULL) ? $text : "Add New Student"; 
+		break;
+		case "scheduling":  
+	    	$page = "akimbo-crm2";
+	    	$text = ($text != NULL) ? $text : "Scheduling"; 
 	    break;
 	    default: 
 	    	$page = 'akimbo-crm';
@@ -95,18 +126,18 @@ function akimbo_crm_admin_home_page(){
 	global $wpdb;
 	$today = current_time('Y-m-d');
 	crm_class_list($today);
-	$path = get_site_url()."/wp-admin/admin.php?page=akimbo-crm";
-	echo "<h2><a href='".$path."&tab=details'><button>Student Details</button></a> <a href='".$path."&tab=roster'><button>View Roster</button></a> <a href='".$path."&tab=availabilities'><button>Update Availabilities</button></a></h2>";
-
+	akimbo_crm_permalinks("add student", "button");
 	if (current_user_can('manage_woocommerce')){
-		echo "<h2><a href='".$path."2'><button>Classes</button></a> <a href='".$path."2&tab=schedule'><button>Add Class</button></a> <a href='".$path."4'><button>Bookings</button></a> <a href='".$path."3&tab=payroll'> <button>Payroll</button></a></h2>";
+		akimbo_crm_permalinks("scheduling", "button");
+		akimbo_crm_permalinks("payroll", "button");
+		akimbo_crm_permalinks("bookings", "button");
 	}
 }
 
 function akimbo_crm_student_details(){
 	crm_dropdown_selector("students", "akimbo-crm", "details");
 	crm_dropdown_selector("users", "akimbo-crm", "details");
-	akimbo_crm_permalinks("students", "text", "Add new student", array('student' => "new"));
+	akimbo_crm_permalinks("add student", "text");
 	echo "<br/><hr><br/>";
 	if(isset($_GET['message'])){
 		$message = ($_GET['message'] == "success") ? "<div class='updated notice is-dismissible'><p>Updates successful!</p></div>" : "<div class='error notice is-dismissible'><p>Update failed, please try again</p></div>";
@@ -183,7 +214,7 @@ function akimbo_crm_business_details(){
 	crm_date_selector("akimbo-crm3", "business");
 	
 	
-	echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Classes</th><th>Trainers</th><th>Students</th><th>In</th><th>Out</th><th>Total</th></tr>";
+	echo "<table width='80%''><tr><th>Classes</th><th>Trainers</th><th>Students</th><th>In</th><th>Out</th><th>Total</th></tr>";
 	$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$week_start' AND session_date <= '$week_end' ORDER BY session_date ASC");
 	$i=0;
 	$total = 0;
@@ -236,7 +267,8 @@ function akimbo_crm_business_details(){
 		$$age[out] += $trainer_wage;
 		$$age[total] += $subtotal;
 		
-	echo "<tr><td>".date("g:ia D jS M", strtotime($class->session_date)).": <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&class=".$class->list_id."'>".$class->class_title."</a></td><td>";
+		echo "<tr><td>".date("g:ia D jS M", strtotime($class->session_date)).": ";
+		echo $class->class_admin_link($class->class_title)."</td><td>";
 		echo $class->trainer_id.", ".$class->trainer2_id;
 		echo "</td><td>".$count."</td><td>$";
 		echo $income."</td><td>$".$trainer_wage."</td><td>$";
@@ -253,7 +285,7 @@ function akimbo_crm_business_details(){
 
 
 	echo "<h2>Parties</h2>";
-	echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Classes</th><th>Trainers</th><th>Original Order</th><th>Extra students</th><th>Out</th><th>Total</th></tr>";
+	echo "<table width='80%''><tr><th>Classes</th><th>Trainers</th><th>Original Order</th><th>Extra students</th><th>Out</th><th>Total</th></tr>";
 	$bookings = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_bookings WHERE book_ref >= '$week_start' AND book_ref <= '$week_end' ORDER BY book_ref ASC ");
 	$book_in = 0;
 	$book_out = 0;
@@ -295,7 +327,7 @@ function akimbo_crm_business_details(){
 
 
 	echo "<h2>Actual Usage</h2>";
-	echo "<table width='80%''><tr bgcolor = '#33ccff'><th>Category</th><th>In</th><th>Out</th><th>Total</th></tr>";
+	echo "<table width='80%''><tr><th>Category</th><th>In</th><th>Out</th><th>Total</th></tr>";
 	sort($ages);//sort A-Z
 	$sum = 0;
 	foreach($ages as $display){
@@ -390,7 +422,7 @@ function akimbo_crm_business_details(){
 	?>
 
 Not sure quantity is calculating correctly for multiple kids & Active Kids vouchers aren't being included in total
-<table width='80%''><tr bgcolor = '#33ccff'><th>Class</th><th>Students</th><th>Classes</th><th>In</th><th>Out</th><th>Total</th></tr>
+<table width='80%''><tr><th>Class</th><th>Students</th><th>Classes</th><th>In</th><th>Out</th><th>Total</th></tr>
 <?php 
 
 foreach($ages as $product){
@@ -417,7 +449,7 @@ create function: for a given order number, calculate the price paid per session.
 
 Cashflow report. Quickbooks compared with Woocommerce<br/><br/>
 
-<table border='1'>Quarterly info</td></tr>
+<table><tr><td>Quarterly info</td></tr>
 <tr><td>Term 1</td></tr>
 <tr><td>Woocommerce Income</td></tr>
 <tr><td>Quickbooks Invoices</td></tr>

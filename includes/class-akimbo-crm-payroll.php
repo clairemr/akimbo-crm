@@ -42,7 +42,7 @@ class Akimbo_Crm_Payroll{
 			
 			foreach($this->payroll_items as $item){
 				if(isset($item->shift_type)){
-					echo "<tr><td align='right'>".ucwords($item->shift_type)." , ".date('h:ia l jS M', strtotime($item->start_time))."</td><td>".$payroll_trainers[$item->trainer_id]."</td><td>".$item->duration." mins</td></tr>";
+					echo "<tr><td align='right'>".ucwords($item->shift_type)." , ".date('g:ia l jS M', strtotime($item->start_time))."</td><td>".$payroll_trainers[$item->trainer_id]."</td><td>".$item->duration." mins</td></tr>";
 				}
 				$line_trainers = (isset($item->trainers)) ? unserialize($item->trainers) : unserialize($item->meta_value);
 				$i = 1;	
@@ -52,12 +52,13 @@ class Akimbo_Crm_Payroll{
 						if($trainer >= 1){//don't show empty slots
 							echo "<tr><td align='right'>";
 							$duration = $item->duration;
-							$start = date('h:ia l jS M', strtotime($item->session_date));
-							if(isset($item->class_title)){echo $item->class_title;
+							$start = date('g:ia l jS M', strtotime($item->session_date));
+							if(isset($item->class_title)){
+								echo akimbo_crm_class_permalink($item->list_id, $item->class_title);
 							}else{
 								echo "Booking ".$item->avail_id;
 								$duration = ($i == 1) ? $duration + 60 : $duration + 30;//add set up. 60mins senior, 30 mins junior
-								$start = ($i == 1) ? date('h:ia l jS M', strtotime('-30mins', strtotime($item->session_date))) : date('h:ia l jS M', strtotime('-15mins', strtotime($item->session_date)));
+								$start = ($i == 1) ? date('g:ia l jS M', strtotime('-30mins', strtotime($item->session_date))) : date('h:ia l jS M', strtotime('-15mins', strtotime($item->session_date)));
 							}
 							echo ", ".$start."</td><td>".$payroll_trainers[$trainer]."</td><td>".$duration." mins</td></tr>";
 						}

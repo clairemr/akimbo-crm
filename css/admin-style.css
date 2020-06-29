@@ -1,0 +1,30 @@
+ 
+  table {
+    border-collapse: collapse;
+    border: 1px solid black;
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+  
+  table, th, td {
+    /*border: 1px solid black;*/
+    padding: 5px;
+  }
+  
+  th{
+    background-color: #33ccff;
+    height: 40px;
+    vertical-align: middle;
+  }
+  
+  table tr {
+    border-bottom: 1px solid black;
+  }
+  
+  hr{
+    margin: 20px;
+    }
+  
+  p a {
+    font-style: italic;
+  }
