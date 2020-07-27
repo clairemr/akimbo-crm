@@ -224,6 +224,15 @@ function crm_get_item_available_passes($item_id, $order = NULL){
 				$item_info['remaining'] = ($passes * $item_info['qty']) - $item_info['used'];
 				$item_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$item_info['$order_id']."/'>View Order</a>";	
 				//$order_info['type'] = "casual";
+				$item_info['type'] = (get_post_type($order_id) == "renewal") ? "subscription" : "order";
+				
+				//add in subscription function to avoid having to pass subscription object
+				/*$subscription_info['parent'] = $parent;
+				$subscription_info['active'] = true;
+				$subscription_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-subscription/".$subscription_info['id']."/'>View Subscription</a>";
+				$subscription_info['next'] = $subscription->get_date( 'next_payment' );*/
+
+
 			}
 		}else{//not a bookable item
 		}
@@ -392,7 +401,8 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 			    case "enrolment":
 			        $class_id = ($item['variation_id'] >= 1) ? $item['variation_id'] : $product->get_id();
 			        $weeks = wc_get_order_item_meta($item_id, "weeks");
-			        $semester = ucwords(wc_get_order_item_meta($item_id, "semester"));
+					$semester = ucwords(wc_get_order_item_meta($item_id, "semester"));
+					if($semester == NULL){$semester = ucwords(wc_get_order_item_meta($item_id, "pa_semester"));}//some use pa_semester
 			        if($semester == NULL){// || !isset($weeks)
 			        	echo "Please update semester";
 			        }else{
@@ -461,8 +471,7 @@ function crm_update_order_meta (){
 		$result = wc_update_order_item_meta($item_id, $meta_key, $meta_data);
 	}
 	if($result){
-		$url = get_site_url();
-		$url .= (isset($_POST['url'])) ? $_POST['url'] : crm_admin_order_link_from_item_id($item_id);
+		$url = (isset($_POST['url'])) ? get_site_url().$_POST['url'] : crm_admin_order_link_from_item_id($item_id);
 		wp_redirect( $url ); 
 		exit;
 	}
@@ -476,6 +485,7 @@ function crm_update_order_meta (){
 ****************************************************************************************************************************************/
 
 function crm_display_enrolment_issues(){
+	global $wpdb;
 	echo "Display all Youth/Junior Circus orders where weeks != weeks_used OR weeks/weeks_used not set";
 	$classes = array_merge(get_all_orders_from_a_product_id( '1473' ), get_all_orders_from_a_product_id( '1479' ));
 

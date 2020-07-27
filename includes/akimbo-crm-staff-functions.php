@@ -99,8 +99,6 @@ function crm_update_trainers(){
 	exit;
 }
 
-
-
 function akimbo_crm_manage_payroll(){
 	global $wpdb;
 	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
@@ -109,7 +107,7 @@ function akimbo_crm_manage_payroll(){
 	$pay_day = strtolower(get_option("akimbo_crm_pay_day"))." this week";
 	echo "<br/>Payment date: ".date("l jS M", strtotime($pay_day, strtotime($date)))."</h4>";
 	crm_date_selector("akimbo-crm3", "payroll");
-	$payroll = new Akimbo_Crm_Payroll($crm_date['week_start'], $crm_date['week_end']);
+	$payroll = new Akimbo_Crm_Payroll($crm_date['last_week_start'], $crm_date['last_week_end']);
 	$payroll->display_items();
 	echo "<br/><hr>";
 	if(current_user_can('manage_options')){

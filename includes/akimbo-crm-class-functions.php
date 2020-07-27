@@ -46,7 +46,7 @@ function crm_class_list($start = NULL, $end = NULL, $length = 10, $format = "dis
 		$classes = $wpdb->get_col("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$start' ORDER BY session_date ASC LIMIT $length " );
 	}
 	if($classes  && $format == "display"){
-		echo "<table><tr bgcolor = '#33ccff'><th>Class</th><th>Trainer/s</th><th>Enrolments</th><th>Attendance</th></tr>";
+		echo "<table><tr bgcolor = '#33ccff'><th width='55%'>Class</th><th width='20%'>Trainer/s</th><th colspan='2' width='25%'>Enrolments</th></tr>";
 		foreach ( $classes as $class_id ) {
 			$class = new Akimbo_Crm_Class($class_id);//->list_id
 			$class_info = $class->get_class_info();
@@ -93,8 +93,8 @@ function akimbo_crm_manage_classes_details($class_id){
 		$student_info = $class->get_student_info();
 		if(!$student_info){$student_info = array('student_ids' => 0, '$student_list' => 0);}//testing to see if its empty classes that aren't working
 		do_action( 'akimbo_crm_manage_classes_before_attendance_table', $class_id );
-		echo apply_filters('manage_classes_attendance_table_title', "<h2>Mark Attendance</h2>");
-		apply_filters('manage_classes_update_trainer_dropdown', crm_update_trainer_dropdown("class", $class_id, unserialize($class->get_class_info()->trainers)));
+		//echo apply_filters('manage_classes_attendance_table_title', "<h2>Mark Attendance</h2>");
+		//apply_filters('manage_classes_update_trainer_dropdown', crm_update_trainer_dropdown("class", $class_id, unserialize($class->get_class_info()->trainers)));
 		apply_filters('manage_classes_mark_attendance_table', display_attendance_table($class));
 		do_action('manage_classes_enrolment', akimbo_crm_admin_manual_enrolment_button($class_id, $student_info['student_ids'], $class->get_class_type(), $class_info->age_slug)); 
 		if($student_info['student_list']){//only show unenrol button if students are enrolled
@@ -106,7 +106,7 @@ function akimbo_crm_manage_classes_details($class_id){
 		}
 		$unpaid_students = $student_info['unpaid_students'];
 		if(isset($unpaid_students)){
-			echo apply_filters('manage_classes_attendance_table_title', "<h2>Update Order IDs</h2>");
+			echo apply_filters('manage_classes_attendance_table_title', "<h2>Unpaid Students</h2>");
 			foreach($unpaid_students as $unpaid_student){
 				echo $unpaid_student->full_name();
 				$url = akimbo_crm_class_permalink($class_id);
@@ -122,9 +122,11 @@ function akimbo_crm_manage_classes_details($class_id){
 			crm_get_user_email_list($user_list);//custom functions
 		}
 
-		echo "<h2>Class Details</h2>";
-		echo "<strong>Age: </strong>".$class->age_slug()."<br/><strong>Type: </strong>".$class->get_class_type()."<br/><strong>Semester: </strong>".$class->class_semester()."<br/>";
-		crm_update_class_date_form($class);
+		
+		?><form action="admin.php" method="get">
+		<input type="hidden" name="page" value="akimbo-crm2" />
+		<input type='hidden' name='class_id' value='<?php echo $class->class_id;?>' />
+		<br/><input type='submit' value='Edit Class'></form><?php //redirects to schedule page
 		echo "<br/><hr><br/>";		
 	}
 }
@@ -139,11 +141,15 @@ function display_related_classes($class){
 	global $wpdb;//use period to differentiate between future, period (all, future or semester e.g. T2-2020) and all
 	$i=0;
 	$class_variations = $class->enrolment_related_classes();
+	$class_students = $class->get_student_info();
 	echo "<table width='80%''><tr bgcolor = '#33ccff'><th colspan='6' align='center'>".$class->get_semester()."</th></tr><tr bgcolor = '#89ccff'><th>Week</th><th>Class Name</th><th>Class Date</th><th>Enrolled</th><th>Attended</th><th>Details</th></tr>";
 	foreach($class_variations as $class){
 		$i++;
 		$class_info = $class->get_class_info();
-		echo "<tr><td>".$i."</td><td>".$class_info->class_title."</td><td>".$class_info->session_date."</td><td></td><td></td><td>".akimbo_crm_class_permalink($class_info->list_id, "View")."</td></tr>";
+		echo "<tr><td>".$i."</td><td>".$class_info->class_title."</td><td>";
+		echo date("g:ia, l jS M", strtotime($class_info->session_date))."</td><td>";
+		echo $class_students['count']."</td><td>".$class_students['attended']."</td><td>";
+		echo akimbo_crm_class_permalink($class_info->list_id, "View")."</td></tr>";
 	}
 	echo "</table>";
 }
@@ -154,7 +160,10 @@ function display_attendance_table($class){
 	if($class->previous_class() >= 1){echo "<a href='".akimbo_crm_class_permalink($class->previous_class())."'><input type='submit' value='<'></a> ";}
 	echo $class_info->class_title." ".date("g:ia, l jS M", strtotime($class_info->session_date));
 	if($class->next_class() >= 1){echo  " <a href='".akimbo_crm_class_permalink($class->next_class())."'><input type='submit' value='>'></a>";	}
-	echo "</h2></th>";
+	echo "</h2></th></tr><tr><td colspan='3' align='center'>";
+	crm_update_trainer_dropdown("class", $class->class_id, unserialize($class->get_class_info()->trainers));
+	echo "</td></tr>";
+
 	$class_student_info = $class->get_student_info();
 	$students = $class_student_info['student_list'];
 	if($students){

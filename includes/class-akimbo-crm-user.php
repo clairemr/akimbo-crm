@@ -111,7 +111,9 @@ class Akimbo_Crm_User extends WP_User{
 					//$subscription_info['product_id'] = $item_data['product_id'];
 					//$subscription_info['options'] = $product_ids;
 					if(in_array($product_id, $product_ids)){
-						$subscription_info['order_id'] = $order->get_id();
+						$subscription_info = crm_get_item_available_passes($item_id, $order);
+						
+						/*$subscription_info['order_id'] = $order->get_id();
 						$subscription_info['product_id'] = $item_data['product_id'];
 						$subscription_info['item_id'] = $item_id;
 						$subscription_info['options'] = $product_ids;
@@ -126,7 +128,7 @@ class Akimbo_Crm_User extends WP_User{
 							$subscription_info['weeks_used']= (isset($item_data['weeks_used'])) ? $item_data['weeks_used'] : 0;
 							$subscription_info['remaining'] = $subscription_info['weeks'] - $subscription_info['weeks_used'];
 						}
-						$subscription_info['expiry'] = (isset($item_data['expiry_date'])) ? $item_data['expiry_date'] : $subscription->get_date( 'next_payment' );
+						$subscription_info['expiry'] = (isset($item_data['expiry_date'])) ? $item_data['expiry_date'] : $subscription->get_date( 'next_payment' );*/
 						$subscription_info['parent'] = $parent;
 						$subscription_info['active'] = true;
 						$subscription_info['type'] = "subscription";

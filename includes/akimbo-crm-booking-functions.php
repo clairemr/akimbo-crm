@@ -58,7 +58,7 @@ function akimbo_crm_manage_booking_schedules(){
 		echo apply_filters('akimbo_crm_manage_bookings_detailed_info', $booking->get_booking_info());
 		
 		
-		echo "<br/><hr><h3><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=booking_details'><button>Reset</button></a></h3>";
+		echo "<br/><hr><h3><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=booking_details'><button>Reset</button></a></h3>";
 
 		echo "<br/><hr><h2>Archived Functions: </h2>";
 		echo apply_filters('akimbo_crm_manage_bookings_tasks', $booking->tasks());
@@ -73,13 +73,13 @@ function akimbo_crm_manage_booking_schedules(){
 	$crm_date = crm_date_setter_month($date);
 	$availability = crm_check_booking_availability(0, $crm_date['start_time'], $crm_date['end']);
 
-	$header = "<h2><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=calendar&date=".$crm_date['previous_month']."'><input type='submit' value='<'></a> ".$crm_date['month']." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=calendar&date=".$crm_date['next_month']."'><input type='submit' value='>'></a></h2>";
+	$header = "<h2><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=calendar&date=".$crm_date['previous_month']."'><input type='submit' value='<'></a> ".$crm_date['month']." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=calendar&date=".$crm_date['next_month']."'><input type='submit' value='>'></a></h2>";
 	
 	
 	if (current_user_can('manage_woocommerce')){//only admin can view & edit availabilities
 		echo "<table border='1' width='100%'><tr><td colspan='7' align='center'>";
 		echo apply_filters('akimbo_crm_manage_availabilities_header', $header);
-	apply_filters('akimbo_crm_manage_availabilities_before_calendar', crm_date_selector("akimbo-crm4", "calendar"));
+	apply_filters('akimbo_crm_manage_availabilities_before_calendar', crm_date_selector("akimbo-crm2", "calendar"));
 		echo "</td></tr><tr>";
 		$days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 		for($x = 1; $x <= 7; $x++){
@@ -103,7 +103,7 @@ function akimbo_crm_manage_booking_schedules(){
 							$avail_date = $avail->get_booking_date("Y-m-j");
 							if($avail_date == $select_value){
 								echo "Available: ".$avail->get_booking_date("g:ia");
-								crm_simple_delete_button('crm_availability', "avail_id", "$avail_id->avail_id", "/wp-admin/admin.php?page=akimbo-crm4&tab=calendar");
+								crm_simple_delete_button('crm_availability', "avail_id", "$avail_id->avail_id", "/wp-admin/admin.php?page=akimbo-crm2&tab=calendar");
 								$avail->book_button();
 								echo "<hr>";
 							}
@@ -129,12 +129,12 @@ function akimbo_crm_manage_booking_schedules(){
 	?>
 	<hr>
 	<form action="admin.php" method="get">
-	<input type="hidden" name="page" value="akimbo-crm4" />
+	<input type="hidden" name="page" value="akimbo-crm2" />
 	See all bookings: <select name="booking"><?php
 		get_all_bookings_for_date_range($crm_date['start_time'], "dropdown");//or replace start with $date for future bookings only
 	?></select><input type="submit" value="Select"></form> 
 	<form action="admin.php" method="get">or search orders: 
-	<input type="hidden" name="page" value="akimbo-crm4" />
+	<input type="hidden" name="page" value="akimbo-crm2" />
 	<input type="number" name="order"> <input type="submit" value="View"></form><?php
 	if(isset($_GET['order'])){
 		echo "Haven't yet finished this function, but will eventually let you add booking dates to orders that don't have one set";
@@ -193,7 +193,7 @@ function crm_update_booking_meta_process(){
 	'meta_value' => $_POST['meta_value'],
 	);
 	$result = $wpdb->insert($table, $data);
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=booking_details&booking=".$_POST['avail_id'];	
+	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=booking_details&booking=".$_POST['avail_id'];	
 	wp_redirect( $url ); 
 	exit;
 }
@@ -397,7 +397,7 @@ function crm_add_booking_no_order(){
 	$data = array('availability' => 0,);
 	$where = array('avail_id' => $_POST['id']);
 	$result = $wpdb->update($table, $data, $where);
-	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=bookings" ); 
+	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=bookings" ); 
 	exit;
 }
 
@@ -437,7 +437,7 @@ function crm_add_booking_availability_process(){//not yet working
 		$result = $wpdb->insert($table, $data);
 		$new_date = date("Y-m-d H:i", strtotime($new_date) + 604800);//add number of seconds in 7 days, g:ia time format 6:00pm
 	}
-	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=calendar" ); 
+	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=calendar" ); 
 	exit;
 }
 
@@ -460,7 +460,7 @@ function crm_add_booking_availability_process(){//not yet working
 		
 	}
 
-	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=calendar" ); 
+	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=calendar" ); 
 	exit;
 }*/
 
@@ -516,7 +516,7 @@ Potentially outdated functions
 		$wpdb->insert( $table, $data);
 	}
 
-	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&tab=booking_details&order=".$_POST['order_id'] ); 
+	wp_redirect( get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=booking_details&order=".$_POST['order_id'] ); 
 	exit;
 }*/
 
@@ -534,7 +534,7 @@ function crm_archive_booking(){//values set on manage_bookings.php
 	}
 	
 	// redirect to bookings page
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm4";
+	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2";
 	wp_redirect( $url ); 
 	exit;	
 }
@@ -565,7 +565,7 @@ function crm_add_new_booking() {//values set on manage_bookings.php
 	$wpdb->insert($table, $data);
 	
 	// redirect to bookings page
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm4";
+	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2";
 	wp_redirect( $url ); 
 	exit;	
 }
@@ -608,7 +608,7 @@ function crm_update_booking_checklist(){//values set on manage_bookings.php
 		$wpdb->update( $table, $data, $where);
 	}
 	// redirect to bookings page
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&booking=".$_POST['book_ref'];
+	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&booking=".$_POST['book_ref'];
 	wp_redirect( $url ); 
 	exit;	
 }

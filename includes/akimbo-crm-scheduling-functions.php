@@ -14,7 +14,15 @@ function akimbo_crm_manage_schedules(){
 	if (current_user_can($capability)){
 		if(isset($_GET['message'])){
 			$message = ($_GET['message'] == "success") ? "<div class='updated notice is-dismissible'><p>Schedule added!</p></div>" : "<div class='error notice is-dismissible'><p>Update failed, please try again</p></div>";
-			echo apply_filters('manage_classes_schedule_update_notice', $message);}
+			echo apply_filters('manage_classes_schedule_update_notice', $message);
+		}
+		if(isset($_GET['class_id'])){
+			$class = new Akimbo_Crm_Class($_GET['class_id']);
+			echo "<h2>Edit Class: ".$class->get_the_title()."</h2>";
+			echo "<strong>Age: </strong>".$class->age_slug()."<br/><strong>Type: </strong>".$class->get_class_type()."<br/><strong>Semester: </strong>".$class->class_semester()."<br/>";
+			crm_update_class_date_form($class);
+			echo "<hr>";	
+		}
 		echo "<h2>Semesters</h2>";
 		display_semesters("future");
 		echo apply_filters('manage_classes_add_semester_button', crm_add_new_semester_button());
@@ -137,7 +145,7 @@ function product_details_call( $post ) {
 		$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
 		echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
 		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "";
-		echo "<br/>Age Groups: <select name='age_slug'>";
+		echo "<br/>Age: <select name='age_slug'>";
 		if(isset($details['age_slug'])){
 			echo "<option value='".$details['age_slug'][0]."'>".ucwords($details['age_slug'][0])."</option><option>***</option>";
 		} 
@@ -260,7 +268,7 @@ function crm_add_new_class_schedule($product_id = NULL, $variation_id = NULL, $u
 function add_new_schedule(){
 	global $wpdb;
 	if(!isset($_POST['product_id'])){//get product info from db
-		$class_title = ($_POST['new_class_name']) ? $_POST['new_class_name'] : $_POST['class_name'];//add new title or use existing name
+		$class_name = ($_POST['new_class_name']) ? $_POST['new_class_name'] : $_POST['class_name'];//add new title or use existing name
 		$class_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_title = '$class_name' ORDER BY session_date DESC LIMIT 1");//DESC == most recent
 		if(isset($_POST['virtual']) && $_POST['virtual'] == true){
 			$class_id = 2;
@@ -269,13 +277,16 @@ function add_new_schedule(){
 		}else{
 			$class_id = 1;
 		}
+		$duration = $class_info->duration;
+		$age_slug = $class_info->age_slug;
+		$prod_id = $class_info->prod_id;
 	}else{//get post meta
 		$class_name = get_the_title($_POST['product_id']);
 		$details = get_post_meta($_POST['product_id']);
 		$duration = $details['duration'][0];
-		$age_slug = $details['age_slug'][0];
+		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "kids";
 		$trial_product = get_post_meta($_POST['product_id'], 'trial_product', true );
-		$prod_id = (isset($trial_product)) ? serialize(array($_POST['product_id'], $trial_product)) : serialize(array($_POST['product_id']));
+		$prod_id = (isset($trial_product) && $trial_product >= 1) ? serialize(array($_POST['product_id'], $trial_product)) : serialize(array($_POST['product_id']));
 		$class_id = (isset($_POST['class_id'])) ? $_POST['class_id'] : $_POST['product_id'];
 	}
 
@@ -308,7 +319,6 @@ function add_new_schedule(){
 	$url = ($_POST['url'] != NULL) ? $_POST['url']."&message=".$message : get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=schedule&message=".$message;	
 	wp_redirect( $url ); 
 	exit;
-	
 }
 
 /*
