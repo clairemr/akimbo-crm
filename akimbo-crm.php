@@ -322,6 +322,7 @@ class AkimboCRM {
 		 * Core classes.
 		 */
 		include_once 'includes/class-akimbo-crm-availability.php';
+		include_once 'includes/class-akimbo-crm-booking.php';
 		include_once 'includes/class-akimbo-crm-class.php';
 		include_once 'includes/class-akimbo-crm-party.php';
 		include_once 'includes/class-akimbo-crm-payroll.php';

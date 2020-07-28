@@ -13,7 +13,7 @@
 
 //class Akimbo_Crm_Booking extends WC_Order{//find the correct class to extend, this one doesn't work
 //Potentially can't directly extend the class, instantiate new object instead
-class Akimbo_Crm_Booking{
+class Akimbo_Crm_Party{
 
 	
 	public $avail_id;
