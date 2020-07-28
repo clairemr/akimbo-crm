@@ -1,12 +1,11 @@
 <?php
-//if admin post isn't working, double check I've added the admin_post action....
 /**
  *
  * Akimbo CRM booking functions
  * 
  */
 
-//crm_available_booking_dates_dropdown($product_id = NULL)//select, name = session_date
+
 
 
 add_action('woocommerce_before_add_to_cart_button','CRM_add_custom_fields');
@@ -26,6 +25,11 @@ add_action( 'admin_post_crm_update_booking_trainers', 'crm_update_booking_traine
 add_action( 'admin_post_crm_update_booking_meta_process', 'crm_update_booking_meta_process' );
 
 
+
+
+
+
+//crm_available_booking_dates_dropdown($product_id = NULL)//select, name = session_date
 
 //crm_update_booking_trainers
 /**
@@ -236,31 +240,23 @@ function get_all_bookings_for_date_range($start = NULL, $format = "return"){
  */
 function CRM_add_custom_fields(){
 	global $post;
-	$products = array(152,192,1470,2968);//152,192 test site. Eventually pull dynamically
-	$post_id = $post->ID;
-	if (in_array($post->ID, $products)){//Only show on bookable products
-		global $product;
+	$is_booking = get_post_meta($post->ID, 'is_booking', true );	
+	if($is_booking){
 		ob_start();
-		?><div class="CRM-custom-fields">
-			Your preferred date: 
-			<?php //date dropdown
-			$select = crm_available_booking_dates_dropdown($post->ID);
-			echo $select;//end select options
-			?>
-			<br/><br/>Guest of Honour: <input type="text" name="birthday_name">
-			<!-- <br/><input type="checkbox" name="custom_invite"> Please send me a free customised invitation! -->
+		?><div class="CRM-custom-date">
+			Your preferred date: <?php echo crm_available_booking_dates_dropdown($post->ID);?>
+		</div>
+		<div class="CRM-custom_guest">
+			<br/>Guest of Honour: <input type="text" name="birthday_name"><br/><br/>
 		</div><div class="clear"></div>
 		<?php $content = ob_get_contents();
 		ob_end_flush();
 		return $content;
-		echo $content;
 	}
 }	
 
 /**
- *
- * Add custom data to cart
- * 
+ * Add custom data to cart 
  */
 function CRM_add_item_data($cart_item_data, $product_id, $variation_id){
 	if(isset($_REQUEST['birthday_name'])){
@@ -268,18 +264,12 @@ function CRM_add_item_data($cart_item_data, $product_id, $variation_id){
 	}
 	if(isset($_REQUEST['book_date'])){
 		$cart_item_data['book_date'] = sanitize_text_field($_REQUEST['book_date']);
-		//$_REQUEST['book_date'];//(see if removing the sanitize_text_field keeps time accurate). Undone 24/6, seemed to create problems
 	}
-	/*if(isset($_REQUEST['custom_invite'])){
-		$cart_item_data['custom_invite'] = sanitize_text_field($_REQUEST['custom_invite']);
-	}*/
 	return $cart_item_data;
 }	
 
 /**
- *
  * Display information as Meta on Cart page
- * 
  */
 function CRM_add_item_meta($item_data, $cart_item){
 	if(array_key_exists('birthday_name', $cart_item)){
@@ -293,55 +283,65 @@ function CRM_add_item_meta($item_data, $cart_item){
 		$cart_book_date = date("g:i, l jS M", strtotime($book_date));
 		$item_data[1] = array(
 			'key' => 'Booking date',
-			'value' => $cart_book_date);//eventually update cart display date e.g. $cart_book_date = date("g:ia, l jS M Y", strtotime($book_date));//date("g:ia, l jS M Y", strtotime($book_date))
+			'value' => $cart_book_date);
 	}
-	/*if(array_key_exists('custom_invite', $cart_item)){
-		$custom_invite = $cart_item['custom_invite'];
-		$item_data[2] = array(
-			'key' => 'Custom invite?',
-			'value' => 'Yes please!');
-	}*/
 	return $item_data;
 }
 
 /**
- *
  * Save item meta to database
- * 
  */
 function CRM_add_custom_order_line_item_meta($item, $cart_item_key, $values, $order){
 	if(array_key_exists('birthday_name', $values)){
 		$item->add_meta_data('_birthday_name', $values['birthday_name']);
+		$birthday_name = $values['birthday_name'];
 	}
 	if(array_key_exists('book_date', $values)){
 		$item->add_meta_data('_book_date', $values['book_date']);
 		global $wpdb;
-		//$book_date = $values['book_date'];
-		//$data_id = $wpdb->get_var("SELECT avail_id FROM {$wpdb->prefix}crm_availability WHERE book_date = '$book_date'");
+		$table = $wpdb->prefix.'crm_class_list';
+		$length = (array_key_exists('pa_length', $values)) ? $values['pa_ length'] : $values['length'];
+		$duration = preg_replace('/[^0-9]/', '', $length);//should get 60 from 60 minutes
+		if($duration <= 0){
+			$variation = wc_get_product($item->get_variation_id());
+			$variation_attributes = $variation->get_variation_attributes();
+			$duration = $variation_attributes['attribute_pa_length'];
+		}
+		$prod_id = serialize(array($item->get_product_id()));//$item->get_variation_id()
+
 		
-		$table = $wpdb->prefix.'crm_availability';//delete available slot from calendar table
-		$data = $availability = 0;
-		$where = array( 
-			'session_date' => $values['book_date'],
-		);
-		$wpdb->update( $table, $data, $where);
-	}
-	/*if(array_key_exists('custom_invite', $values)){
-		$item->add_meta_data('_custom_invite', $values['custom_invite']);
-	}*/
-	
+		/*$duration_mins = $duration." minutes";
+		$book_date = $values['book_date'];
+		$book_end = $new_date = date("Y-m-d H:i", strtotime($book_date) + $duration_mins);
+		$query = "SELECT * FROM $table WHERE session_date >= $book_date && session_date <= $book_end";//
+		$bookings = $wpdb->get_results($query);
+		if($bookings){
+			return new WP_Error( 'doublebooked', __( "Sorry, it looks like that date is already taken!", "my_textdomain" ) );
+		}else{*/
+			$data = array(
+				'age_slug' => "private",
+				//'prod_id' => $prod_id,//serialized, column format must be text, not int
+				//'class_id' => $order->get_id(),//no order id until processed
+				'location' => "Circus Akimbo - Hornsby",
+				'session_date' => $values['book_date'],
+				'duration' => $duration,
+				'prod_id' => $prod_id,
+			);
+			$data['class_title'] = (array_key_exists('birthday_name', $values)) ? "Party: ".$values['birthday_name'] : "Party";
+			$result = $wpdb->insert($table, $data);
+		//}			
+	}	
 }
 
 /**
- *
- * Hide quantity button for parties
+ * Hide quantity button for private bookings
  * https://www.cloudways.com/blog/hide-product-quantity-field-from-woocommerce-product-pages/
- * 
  */
 function crm_hide_booking_quantity() {
 	if(is_product()){
 		global $post;
-		if ($post->ID == '1470' || $post->ID == '2968'){
+		$is_booking = get_post_meta($post->ID, 'is_booking', true );	
+		if($is_booking){
 			?><style type="text/css">.quantity, .buttons_added { width:0; height:0; display: none; visibility: hidden; }</style><?php
 		}
 	}
@@ -355,7 +355,7 @@ function crm_available_booking_dates_shortcode($atts){//$page = null
 
 function crm_available_booking_dates_dropdown($product_id = 0, $start=NULL){
 	$availability = crm_check_booking_availability($product_id,  $start);
-	$select = "<br/><select name= 'session'>";
+	$select = "<br/><select name= 'book_date'>";
 	if(isset($availability)){
 		foreach($availability as $avail){
 			$select.= "<option value=' ".$date = date("Y-m-d H:i", strtotime($avail->session_date))."'>".date("g:ia, l jS M Y", strtotime($avail->session_date))."</option>"; 
@@ -372,11 +372,13 @@ function crm_available_booking_dates_dropdown($product_id = 0, $start=NULL){
 //function crm_check_booking_availability($product_id = NULL, $start = NULL, $end = NULL){
 function crm_check_booking_availability($product_id = NULL, $start = NULL){
 	global $wpdb;
-	if($start == NULL){
+	$start = ($start == NULL ) ? current_time('Y-m-d H:ia') : $start;
+	$availability = array();
+	/*if($start == NULL){
 		$date = current_time('Y-m-d H:ia');
 		$crm_date = crm_date_setter_month($date);
 		$start = $crm_date['start'];
-	}
+	}*/
 	//$end = ($end != NULL) ? $end : current_time('Y-m-t');//ternary operator
 	if($product_id >= 1){
 		$availabilities = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_availability WHERE availability = '1' AND session_date >= '$start' ORDER BY session_date");
