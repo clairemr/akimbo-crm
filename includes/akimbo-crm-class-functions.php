@@ -70,7 +70,18 @@ function akimbo_crm_manage_classes(){
 		echo apply_filters('manage_classes_update_notice', $message);
 	}
 	if(isset($_GET['class'])){
-		akimbo_crm_manage_classes_details($_GET['class']);
+		/**
+		 * Create function for this
+		 */
+		global $wpdb;
+		$class_id = $_GET['class'];
+		$age = $wpdb->get_var("SELECT age_slug FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$class_id'");
+		if($age == "private"){
+			crm_display_booking_info($class_id);
+		}else{
+			akimbo_crm_manage_classes_details($_GET['class']);
+		}
+		
 		crm_class_list();//show next 10 classes
 	} else{
 		$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');
@@ -84,6 +95,12 @@ function akimbo_crm_manage_classes(){
 }
 
 function akimbo_crm_manage_classes_details($class_id){
+	//party test code
+	/*$variation = wc_get_product(153);
+	$variation_attributes = $variation->get_variation_attributes();
+	var_dump($variation_attributes);
+	echo $variation_attributes['attribute_pa_length'];*/
+
 	$class = new Akimbo_Crm_Class($class_id);
 	//echo "Semester: ". $class->class_semester();
 	$class_info = $class->get_class_info();
@@ -127,6 +144,7 @@ function akimbo_crm_manage_classes_details($class_id){
 		<input type="hidden" name="page" value="akimbo-crm2" />
 		<input type='hidden' name='class_id' value='<?php echo $class->class_id;?>' />
 		<br/><input type='submit' value='Edit Class'></form><?php //redirects to schedule page
+		echo "<-- Function not yet written";
 		echo "<br/><hr><br/>";		
 	}
 }
@@ -136,6 +154,17 @@ function akimbo_crm_manage_classes_details($class_id){
 * Display Functions
 *
 */
+
+function crm_display_booking_info($booking_id){
+	$booking = new Akimbo_Crm_Booking($booking_id);
+	$booking_info = $booking->get_booking_info();
+	echo "<br/><table width='80%' style='border-collapse: collapse;'><tr bgcolor = '#33ccff'><th colspan='3'><h2>";
+	echo $booking_info->class_title." ".date("g:ia, l jS M", strtotime($booking_info->session_date));
+	echo "</h2></th></tr><tr><td colspan='3' align='center'>";
+	crm_update_trainer_dropdown("class", $booking_info->class_id, unserialize($booking_info->trainers));
+	echo "</td></tr><tr><td colspan='3' align='center'></td></tr>";
+	echo "</table>";
+}
 
 function display_related_classes($class){
 	global $wpdb;//use period to differentiate between future, period (all, future or semester e.g. T2-2020) and all
@@ -213,6 +242,7 @@ function crm_delete_class_series_button($class_id){
 * Update class details
 */
 function crm_update_class_date_form($class){
+	echo "Function not yet written";
 	$class_info = $class->get_class_info();
 	$date = explode(" ", $class_info->session_date);
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">

@@ -59,6 +59,9 @@ class Akimbo_Crm_Class{
 	}
 
 	function get_class_type(){
+		/**
+		 * find crm_casual_or_enrolment <-- hopefully outdated now. Replace with product meta data
+		 */
 		$class_type = crm_casual_or_enrolment($this->get_product_id());
 		if($class_type == NULL){
 			$class_type = ($this->class_info->age_slug == "kids") ? "enrolment" : "casual";

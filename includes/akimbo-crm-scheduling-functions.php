@@ -133,12 +133,15 @@ function product_details_add() {
 
 function product_details_call( $post ) {
 	$details = get_post_meta(get_the_ID());
-	echo "<input type='checkbox' name='is_bookable' id='is_bookable'";//disable this option for now
+	echo "<input type='checkbox' name='is_bookable' id='is_bookable'";
 	if(isset($details['is_bookable'])){echo "checked";}
-	echo " >Allow scheduling. ";
-	echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";//disable this option for now
+	echo " >Allow class scheduling. ";
+	echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";
 	if(isset($details['is_casual'])){echo "checked";}
 	echo " >Casual Class. ";
+	echo "<br/><input type='checkbox' name='is_booking' id='is_booking'";
+	if(isset($details['is_booking'])){echo "checked";}
+	echo " >Private booking. ";
 	
 	if(isset($details['is_bookable'])){
 		$product_id = get_the_ID();
@@ -189,6 +192,9 @@ function product_details_save($post_id){
     }
     if (array_key_exists('is_casual', $_POST)) {
         update_post_meta($post_id,'is_casual', $_POST['is_casual']);
+	}
+	if (array_key_exists('is_booking', $_POST)) {
+        update_post_meta($post_id,'is_booking', $_POST['is_booking']);
     }
     if (array_key_exists('duration', $_POST)) {
         update_post_meta($post_id,'duration', $_POST['duration']);
