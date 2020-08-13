@@ -496,7 +496,7 @@ function kids_class_enrolment(){//matched orders, where item_id is given
  */
 
 //Unenrol single student, with attendance ID provided
-function crm_student_unenrol_button($att_id, $class_type){
+function crm_student_unenrol_button($att_id, $class_type = NULL){
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
 		if($class_type != NULL){echo "<input type='hidden' name='class_type' value='".$class_type."'>";}
 		?><input type="hidden" name="att_id" value="<?php echo $att_id; ?>"> 
