@@ -103,13 +103,18 @@ crm_get_order_available_passes($order, $product_ids = NULL) //return array of it
 get_all_orders_items_from_a_product_variation( $variation_id ){// returns array of order items ids
 get_all_orders_from_a_product_id( $product_id, $ids = NULL ){//return $ids (if true) or array of results
 crm_product_get_age_slug($product_id){//based on product category, Private lessons, Adult Classes, Kids Classes or Playgroup
-crm_casual_or_enrolment($product_id)//based on product tags casual/enrolment.Update to _is_bookable & is_casual
+
+crm_product_meta_type($product_id)//replaces crm_casual_or_enrolment in 2.2 and returns booking, casual or enrolment
 */
 
-function crm_admin_order_link($order_id, $text = NULL){
+function crm_admin_order_link($order_id, $text = NULL, $return = false){
 	$url = get_site_url()."/wp-admin/post.php?post=".$order_id."&action=edit";
 	if($text != NULL){
-		echo "<a href='".$url."'>".$text."</a>";
+		if($return == false){
+			echo "<a href='".$url."'>".$text."</a>";
+		}else{
+			return "<a href='".$url."'>".$text."</a>";
+		}
 	}else{
 		return $url;
 	}	
@@ -304,23 +309,34 @@ function crm_product_get_age_slug($product_id){
 }
 
 /**
- *
- * For a given product ID, return class_type casual, enrolment or party. Based on product tags
- * 
+ * Replaces crm_casual_or_enrolment in 2.2
+ * Returns booking, casual or enrolment
  */
-function crm_casual_or_enrolment($product_id){
-	global $wpdb;
-	if ( has_term( 'casual', 'product_tag', $product_id ) ){
-		$class_type = "casual";
-	}elseif( has_term( 'enrolment', 'product_tag', $product_id ) ){
-		$class_type = "enrolment";
-	}elseif( has_term( 'party', 'product_tag', $product_id ) ){
-		$class_type = "party";
+function crm_product_meta_type($product_id){
+	$is_booking = get_post_meta($product_id, 'is_booking', true );
+	$is_casual = get_post_meta($product_id, 'is_casual', true );
+	$is_bookable = get_post_meta($product_id, 'is_bookable', true );
+	if($is_booking){
+		$result = "booking";
+	}elseif($is_casual){
+		$result = "casual";
+	}elseif($is_bookable){//bookable, but not casual or private booking
+		$result = "enrolment";
 	}else{
-		$class_type = NULL;
+		$result = false;
 	}
+	return $result;
+}
 
-	return $class_type;
+/**
+ * Designed to work with the above function, crm_product_meta_type
+ */
+function crm_check_class_type($class_id){
+	global $wpdb;
+	$class_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$class_id'");
+	$products = unserialize($class_info->prod_id);
+	$result = crm_product_meta_type($products[0]);
+	return $result;
 }
 
 
@@ -387,16 +403,21 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 		if(!$is_bookable){
 			echo "Not bookable";
 		}else{
-			$class_type = crm_casual_or_enrolment($product_id); 
+			$class_type = crm_product_meta_type($product_id);
 			switch ($class_type) {
 			    case "casual":
 			        $sessions = wc_get_order_item_meta($item_id, "pa_sessions");
 					if($sessions <= 0){
 						wc_update_order_item_meta($item_id, "pa_sessions", 1);//sessions default to 1 unless set otherwise
-						echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'>Set</a>";
+						$text = "Set";
 					} else {
-						echo $sessions." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'>Reset</a>";
+						$text = $sessions." Reset";
 					}
+					$args = array(
+						"order" => $item['order_id'],
+						"item_id" => $item_id,
+					);	
+					akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
 			        break;
 			    case "enrolment":
 			        $class_id = ($item['variation_id'] >= 1) ? $item['variation_id'] : $product->get_id();
@@ -410,10 +431,18 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 			        	echo $weeks."/".$classes;
 			        	if($weeks <= 0 && $classes >= 1 && $item->get_total() >= 1){
 							wc_update_order_item_meta($item_id, "weeks", $classes);//use update, not add, so it won't enter additional rows
-							echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'><button>Update</button></a>";//refresh window
+							$format = "button";
+							$text = "Update";
 						}else{
-							echo " <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'>Reset</a>";
+							$format = "display";
+							$text = "Reset";
 						}
+						$args = array(
+							"order" => $item['order_id'],
+							"item_id" => $item_id,
+						);	
+				    	akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
+
 						if($weeks >= 1 && $classes >= 1 && $weeks != $classes){
 							$price = $product->get_price();
 							if($price != NULL){
@@ -425,13 +454,16 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 						}
 			        }		
 			        break;
-				    case "party":
-				    	$book_date = date("ga D jS M", strtotime(wc_get_order_item_meta($item_id, "_book_date")));
-				    	if($book_date){
-				    		echo $book_date." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&order=".$item['order_id']."&item_id=".$item_id."'>Reset</a>";
-				    	}else{
-				        	echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&order=".$item['order_id']."&item_id=".$item_id."'>Set date</a>";
-				        }
+					case "booking":
+						$book_date = date("ga D jS M", strtotime(wc_get_order_item_meta($item_id, "_book_date")));
+						echo $book_date.". ";
+						$text = ($book_date) ? "Reset" : "Set Date";
+						$args = array(
+							"order" => $item['order_id'],
+							"product_id" => $item->get_product_id(),
+							"book_date" => date("Y-m-d-H:i", strtotime($book_date)),
+						);	
+				    	akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
 			        break;
 			    default:
 			}
