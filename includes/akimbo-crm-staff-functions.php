@@ -39,14 +39,9 @@ function crm_update_trainer_dropdown($type, $id, $trainers, $include = NULL){//t
 		crm_trainer_dropdown_select("tr1");
 		crm_trainer_dropdown_select("tr2");
 	}	
-	if($type == "class"){
-		?><input type="hidden" name="class_type" value="class">
-		<input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm2&class=<?php echo $id; ?>"><?php
-	}elseif($type == "booking"){
-		?><input type="hidden" name="class_type" value="booking"><?php 
-		?><input type="hidden" name="url" value="/wp-admin/admin.php?page=akimbo-crm4&tab=booking_details&booking=<?php echo $id; ?>"><?php
-	}
-	?><input type="hidden" name="id" value="<?php echo $id; ?>">
+	?><input type="hidden" name="class_type" value="class">
+	<input type="hidden" name="url" value="<?php echo akimbo_crm_class_permalink($id); ?>">
+	<input type="hidden" name="id" value="<?php echo $id; ?>">
 	<input type="hidden" name="action" value="update_trainers">
 	<input type='submit' value='Update Trainers'>
 	</form><?php
@@ -78,23 +73,12 @@ function crm_update_trainers(){
 	$trainers = array();
 	if(isset($_POST['tr1'])){$trainers[] = $_POST['tr1'];}
 	if(isset($_POST['tr2'])){$trainers[] = $_POST['tr2'];}
-	if($_POST['class_type'] == "class"){
-		$table = $wpdb->prefix.'crm_class_list';
-		$where = array('list_id' => $_POST['id']);
-		$data = array('trainers' => serialize($trainers));
-	}elseif($_POST['class_type'] == "booking"){
-		$table = $wpdb->prefix.'crm_booking_meta';
-		$where = array('meta_key' => 'trainers', 'avail_id' => $_POST['id']);
-		$data = array('meta_value' => serialize($trainers));
-		//Add to roster?
-	}else{
-		wp_redirect( get_site_url() ); 
-		exit;
-	}
-
+	$table = $wpdb->prefix.'crm_class_list';
+	$where = array('list_id' => $_POST['id']);
+	$data = array('trainers' => serialize($trainers));
 	$result = $wpdb->update( $table, $data, $where);
 	$message = ($result) ? "success" : "failure";
-	$url = get_site_url().$_POST['url']."&message=".$message;
+	$url = $_POST['url']."&message=".$message;
 	wp_redirect( $url ); 
 	exit;
 }
@@ -111,7 +95,6 @@ function akimbo_crm_manage_payroll(){
 	$payroll->display_items();
 	echo "<br/><hr>";
 	if(current_user_can('manage_options')){
-		//var_dump($payroll->get_items());
 		export_payroll_csv_file($payroll->get_items());
 		echo "<br/><br/><a href='https://quickbooks.intuit.com/au/quickbooks-login/' target='_blank'><button>Log In to Quickbooks</button></a>";
 	}
@@ -142,7 +125,7 @@ function akimbo_crm_update_trainer_availabilities($user_id = NULL){
 	global $wpdb;
 	$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');//ternary operator
 	$crm_date = crm_date_setter_month($date);
-	$header = "<h2><a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=availabilities&date=".$crm_date['previous_month']."'><input type='submit' value='<'></a> Availabilities: ".$crm_date['month']." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=availabilities&date=".$crm_date['next_month']."'><input type='submit' value='>'></a></h2>";
+	$header = crm_date_selector_header("staff", $date, $period = "month");
 	echo apply_filters('akimbo_crm_manage_availabilities_header', $header);
 	//echo "<h4>Month Starting: ".date("D jS M, Y", strtotime($crm_date['start']))."</h4>";
 	crm_date_selector("akimbo-crm", 'availabilities');
@@ -433,9 +416,8 @@ function crm_roster_edit_button(){//send email
 
 function crm_email_trainer_roster_edit(){
 	global $wpdb;
-
-        $trainer = $_POST['trainer'];
-        $userdata = get_userdata($trainer);
+	$trainer = $_POST['trainer'];
+	$userdata = get_userdata($trainer);
 	$to = $userdata->user_email;
 	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=roster&date=".$_POST['date'];
 	
