@@ -51,6 +51,8 @@ class Akimbo_Crm_Class{
 	}
 	
 	function get_product_id(){
+		$products = unserialize($this->class_info->prod_id);
+		$result = crm_product_meta_type($products[0]);
 		return $this->class_info->prod_id;
 	}
 	
@@ -60,9 +62,10 @@ class Akimbo_Crm_Class{
 
 	function get_class_type(){
 		/**
-		 * find crm_casual_or_enrolment <-- hopefully outdated now. Replace with product meta data
+		 * find crm_casual_or_enrolment <-- In order functions. Hopefully outdated now. Replace with product meta data
 		 */
-		$class_type = crm_casual_or_enrolment($this->get_product_id());
+		$class_type = crm_product_meta_type($this->get_product_id());
+		//$class_type = crm_casual_or_enrolment($this->get_product_id());
 		if($class_type == NULL){
 			$class_type = ($this->class_info->age_slug == "kids") ? "enrolment" : "casual";
 		}
