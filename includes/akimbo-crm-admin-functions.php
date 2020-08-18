@@ -80,7 +80,7 @@ function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args
 	    	$tab = "payroll";
 	    	$text = ($text != NULL) ? $text : "Payroll"; 
 	    break;
-	    case "bookings":
+	    case "bookings"://manage availabilities
 			$page = "akimbo-crm2";
 			$tab = "bookings";
 	    	$text = ($text != NULL) ? $text : "Manage Bookings"; 
@@ -99,6 +99,16 @@ function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args
 		case "scheduling":  
 	    	$page = "akimbo-crm2";
 	    	$text = ($text != NULL) ? $text : "Scheduling"; 
+		break;
+		case "staff":  
+			$page = "akimbo-crm";
+			$tab = "availabilities";
+	    	$text = ($text != NULL) ? $text : "Staff Portal"; 
+		break;
+		case "troubleshooting":  
+			$page = "akimbo-crm2";
+			$tab = "enrolment";
+	    	$text = ($text != NULL) ? $text : "Enrolment Troubleshooting"; 
 	    break;
 	    default: 
 	    	$page = 'akimbo-crm';
@@ -187,11 +197,16 @@ function akimbo_crm_unpaid_students(){
 
 function akimbo_crm_enrolment_issues(){
 	global $wpdb;
-	global $post;
-	echo "<h2>Fix enrolment issues</h2>";
-
-	if(isset($_GET['item_id'])){crm_update_weeks_or_sessions($_GET['item_id']);}
-	crm_display_enrolment_issues();
+	if(isset($_GET['product_id'])){//used for adding book_date
+		echo "<h2>Set Booking Date</h2>";
+		crm_update_book_date();
+	}elseif(isset($_GET['item_id'])){
+		echo "<h2>Fix enrolment issues</h2>";
+		crm_update_weeks_or_sessions($_GET['item_id']);
+	}else{
+		crm_display_enrolment_issues();
+	}
+	
 }
 
 function akimbo_crm_business_details(){
