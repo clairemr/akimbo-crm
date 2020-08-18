@@ -93,6 +93,7 @@ function crm_date_setter_month($date){
 	$date_setter['end'] = date('Y-m-t', strtotime($date));
 	$date_setter['end_time'] = date('23:59 Y-m-t', strtotime($date));
 	$date_setter['month'] = date("F", strtotime($date));
+	$date_setter['year'] = date("Y", strtotime($date));
 	$date_setter['number_of_days'] = date('t', strtotime($date));
 	$date_setter['first_day'] = date('l', strtotime($date_setter['start']));
 	
@@ -126,11 +127,34 @@ function crm_date_setter_week($date){
 	$date_setter['week_end'] = date("Y-m-d 23:59", strtotime('sunday this week', strtotime($date)));
 	$date_setter['last_week_start'] = date("Y-m-d 0:00", strtotime('monday last week', strtotime($date)));
 	$date_setter['last_week_end'] = date("Y-m-d 23:59", strtotime('sunday last week', strtotime($date)));
+	$date_setter['next_week_start'] = date("Y-m-d 0:00", strtotime('monday next week', strtotime($date)));
+	$date_setter['next_week_end'] = date("Y-m-d 23:59", strtotime('sunday next week', strtotime($date)));
 	$date_setter['start'] = $date;
 	$date_setter['end'] = date("Y-m-d", strtotime('+7 days', strtotime($date)));
  	
 	return $date_setter;
  }
+
+function crm_date_selector_header($page, $date = NULL, $period = "month"){
+	$date = ($date != NULL) ? $date : current_time('Y-m-d');
+	if($period == "month"){
+		$crm_date = crm_date_setter_month($date);
+		$previous = $crm_date['previous_month'];
+		$next = $crm_date['next_month'];
+		$title = $crm_date['month'].", ".$crm_date['year'];
+	}else{
+		$crm_date = crm_date_setter_week($date);
+		$previous = date("l jS M", strtotime($crm_date['last_week_start']));//remove timestamp
+		$next = date("l jS M", strtotime($crm_date['next_week_start']));
+		$title = "Week Starting: ".date("l jS M", strtotime($crm_date['week_start']));
+	}
+	
+	$header = "<h2><a href='".akimbo_crm_permalinks($page, "link", NULL, array("date" => $previous))."'>";
+	$header .= "<input type='submit' value='<'></a> ".$title;
+	$header .= " <a href='".akimbo_crm_permalinks($page, "link", NULL, array("date" => $next))."'>";
+	$header .= "<input type='submit' value='>'></a></h2>";
+	return $header;
+}
 
  function akimbo_term_dates($format = 'echo', $date = NULL){
 	global $wpdb;
@@ -252,8 +276,9 @@ crm_dashboard_widget_function()//dashboard widget output
 /**
  *
  * Plugin redirect, use at the end of admin posts to direct back to the right page. Values home, classes, bookings, business or custom urls may be passed
- * 
+ * Replaced by permalinks in 2.1
  */
+/*
 function akimbo_crm_redirect($page){
 	$site = get_site_url();
 	if(isset($page)){
@@ -279,7 +304,7 @@ function akimbo_crm_redirect($page){
 
 	wp_redirect( $url );
 	exit;
-}
+}*/
 
 
 
