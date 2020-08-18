@@ -74,20 +74,19 @@ function akimbo_crm_manage_classes(){
 		 * Create function for this
 		 */
 		global $wpdb;
-		$class_id = $_GET['class'];
-		$age = $wpdb->get_var("SELECT age_slug FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$class_id'");
-		if($age == "private"){
-			crm_display_booking_info($class_id);
+		$class_type = crm_check_class_type($_GET['class']);
+		if($class_type == "booking"){
+			crm_display_booking_info($_GET['class']);//in booking functions
 		}else{
 			akimbo_crm_manage_classes_details($_GET['class']);
+			crm_class_list();//show next 10 classes
 		}
 		
-		crm_class_list();//show next 10 classes
 	} else{
 		$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');
+		echo crm_date_selector_header("classes", $date, "week");
 		$crm_date = crm_date_setter_week($date);
-		echo "<h4>Week Starting: ".date("D jS M, Y", strtotime($crm_date['start']))."</h4>";
-		crm_class_list($crm_date['start'], $crm_date['end']);
+		crm_class_list($crm_date['week_start'], $crm_date['week_end']);
 	}
 
 	echo "<br/><hr><br/>";
@@ -154,17 +153,6 @@ function akimbo_crm_manage_classes_details($class_id){
 * Display Functions
 *
 */
-
-function crm_display_booking_info($booking_id){
-	$booking = new Akimbo_Crm_Booking($booking_id);
-	$booking_info = $booking->get_booking_info();
-	echo "<br/><table width='80%' style='border-collapse: collapse;'><tr bgcolor = '#33ccff'><th colspan='3'><h2>";
-	echo $booking_info->class_title." ".date("g:ia, l jS M", strtotime($booking_info->session_date));
-	echo "</h2></th></tr><tr><td colspan='3' align='center'>";
-	crm_update_trainer_dropdown("class", $booking_info->class_id, unserialize($booking_info->trainers));
-	echo "</td></tr><tr><td colspan='3' align='center'></td></tr>";
-	echo "</table>";
-}
 
 function display_related_classes($class){
 	global $wpdb;//use period to differentiate between future, period (all, future or semester e.g. T2-2020) and all
