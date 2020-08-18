@@ -126,8 +126,8 @@ class AkimboCRM {
 	function akimbo_crm_admin_menu(){//Title, admin panel label, user capabilities, slug, function callback
 		if (current_user_can('upload_files')){
 			$parent_slug = "akimbo-crm";
-			add_menu_page( 'Circus Akimbo Admin', 'Akimbo CRM', 'upload_files', $parent_slug, array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
-			add_submenu_page( $parent_slug, 'Classes', 'Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
+			add_menu_page( 'Akimbo CRM', 'Akimbo CRM', 'upload_files', $parent_slug, array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
+			add_submenu_page( $parent_slug, 'Scheduling', 'Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
 			add_submenu_page( $parent_slug, 'Business Admin', 'Business', 'manage_options', 'akimbo-crm3', array(&$this, 'manage_orders' ), 3);
 			add_submenu_page( $parent_slug, 'Settings', 'Settings', 'manage_options', 'crm-options', array(&$this, 'akimbo_crm_options_page' ), 4);
 		}	
@@ -147,7 +147,7 @@ class AkimboCRM {
 				echo crm_nav_tab($page, "home", "Home", $active_tab);
 				echo crm_nav_tab($page, "classes", "Classes", $active_tab);
 				echo crm_nav_tab($page, "details", "Student Details", $active_tab);
-				echo crm_nav_tab($page, "availabilities", "Availabilities", $active_tab);
+				echo crm_nav_tab($page, "availabilities", "Staff Portal", $active_tab);
 			echo "</h2>";
 			switch ($active_tab) {
 				case "home": echo apply_filters('akimbo_crm_admin_home', akimbo_crm_admin_home_page());
