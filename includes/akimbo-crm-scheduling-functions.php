@@ -133,20 +133,34 @@ function product_details_add() {
 
 function product_details_call( $post ) {
 	$details = get_post_meta(get_the_ID());
+	//Enable Akimbo CRM
 	echo "<input type='checkbox' name='is_bookable' id='is_bookable'";
 	if(isset($details['is_bookable'])){echo "checked";}
-	echo " >Allow class scheduling. ";
-	echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";
-	if(isset($details['is_casual'])){echo "checked";}
-	echo " >Casual Class. ";
-	echo "<br/><input type='checkbox' name='is_booking' id='is_booking'";
-	if(isset($details['is_booking'])){echo "checked";}
-	echo " >Private booking. ";
-	
+	echo " >Enable Akimbo CRM. ";//use for all products in CRM
 	if(isset($details['is_bookable'])){
+		// Casual Class product
+		echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";
+		if(isset($details['is_casual'])){echo "checked";}
+		echo " >Casual Class. ";
+		// Private booking
+		echo "<br/><input type='checkbox' name='is_booking' id='is_booking'";
+		if(isset($details['is_booking'])){echo "checked";}
+		echo " >Private booking. ";
+
+		/**
+		 * Get variation information
+		 */
 		$product_id = get_the_ID();
-		$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
-		echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+		$args = array(
+		    'post_type'     => 'product_variation',
+		    'post_status'   => array( 'private', 'publish' ),
+		    'numberposts'   => -1,
+		    'orderby'       => 'menu_order',
+		    'order'         => 'asc',
+		    'post_parent'   => $product_id // get parent post-ID
+		);
+		$variations = get_posts( $args );
+		//Set age slug for all CRM products
 		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "";
 		echo "<br/>Age: <select name='age_slug'>";
 		if(isset($details['age_slug'])){
@@ -157,31 +171,45 @@ function product_details_call( $post ) {
 			<option value='playgroup'>Playgroup</option>
 			<option value='private'>Private</option>
 			</select>";
-		$trial_product = (isset($details['trial_product'])) ? $details['trial_product'][0] : 0;
-		echo "<br/>Trial Product: <input type='number' value='".$trial_product."' name='trial_product'>";
-		$args = array(
-		    'post_type'     => 'product_variation',
-		    'post_status'   => array( 'private', 'publish' ),
-		    'numberposts'   => -1,
-		    'orderby'       => 'menu_order',
-		    'order'         => 'asc',
-		    'post_parent'   => $product_id // get parent post-ID
-		);
-		$variations = get_posts( $args );
-		if($variations != NULL){//add these details in separate function
-			echo "<br/><i>Use the variations tab below to add class times and trainers.</i>";
+
+		/**
+		 * Classes
+		 */
+		if(!isset($details['is_booking'])){
+			$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
+			echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+			$trial_product = (isset($details['trial_product'])) ? $details['trial_product'][0] : 0;
+			echo "<br/>Trial Product: <input type='number' value='".$trial_product."' name='trial_product'>";
+			if($variations != NULL){//add these details in separate function
+				echo "<br/><i>Use the variations tab below to add class times and trainers.</i>";
+			}else{
+				if(!isset($details['is_casual'])){//and post type != variable product
+					//<input type="time" value="13:00" step="900">
+					$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
+					echo "<br/>Start Time: <input type='time' value='".$start_time."' name='start_time' id='start_time'>";
+					echo "<br/>Trainers:";
+					$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
+					crm_trainer_dropdown_select("trainer1", $trainer1);
+					$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
+					crm_trainer_dropdown_select("trainer2", $trainer2);
+				}
+			}	
 		}else{
-			if(!isset($details['is_casual'])){//and post type != variable product
-				//<input type="time" value="13:00" step="900">
-				$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
-				echo "<br/>Start Time: <input type='time' value='".$start_time."' name='start_time' id='start_time'>";
-				echo "<br/>Trainers:";
-				$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
-				crm_trainer_dropdown_select("trainer1", $trainer1);
-				$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
-				crm_trainer_dropdown_select("trainer2", $trainer2);
-			}
-		}	
+		/**
+		 * Private bookings
+		 */
+			if($variations != NULL){//add these details in separate function
+				echo "<br/><i>Use the variations tab below to add booking information.</i>";
+			}else{
+				$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
+			echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+			}	
+		}
+		
+
+		
+		
+	
 	}
 	submit_button();
 }
@@ -217,17 +245,31 @@ function product_details_save($post_id){
 }
 
 function variation_settings_fields( $loop, $variation_data, $variation ) {
-	$details = $variation_data;
-	$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
-	$stname = "start_time[".$variation->ID."]";
-	echo "<br/>Start Time: <input type='time' value='".get_post_meta($variation->ID, 'start_time', true)."' name='".$stname."'>";// readonly
-	echo "<br/>Trainers:";
-	$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
-	$tr1name = "trainer1[".$variation->ID."]";
-	crm_trainer_dropdown_select($tr1name, $trainer1);
-	$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
-	$tr2name = "trainer2[".$variation->ID."]";
-	crm_trainer_dropdown_select($tr2name, $trainer2);
+	$post_details = get_post_meta(get_the_ID());
+	/**
+	 * Only show on products used by CRM
+	 */
+	if(isset($post_details['is_bookable']) && $post_details['is_bookable']){
+		$details = $variation_data;
+		//var_dump($post_details);
+		//echo $variation['post_parent'];
+		if(isset($post_details['is_booking'])){
+			$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
+			$duration_name = "duration[".$variation->ID."]";
+			echo "<br/>Duration: <input type='number' value='".$duration."' name='".$duration_name."' id='duration'> minutes";
+		}elseif(!isset($post_details['is_casual']) && !isset($post_details['is_booking'])){//casual info set on schedule page
+			$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
+			$stname = "start_time[".$variation->ID."]";
+			echo "<br/>Start Time: <input type='time' value='".get_post_meta($variation->ID, 'start_time', true)."' name='".$stname."'>";// readonly
+			echo "<br/>Trainers:";
+			$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
+			$tr1name = "trainer1[".$variation->ID."]";
+			crm_trainer_dropdown_select($tr1name, $trainer1);
+			$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
+			$tr2name = "trainer2[".$variation->ID."]";
+			crm_trainer_dropdown_select($tr2name, $trainer2);
+		}
+	}	
 }
 
 function save_variation_settings_fields( $variation_id, $i ) {
@@ -243,6 +285,10 @@ function save_variation_settings_fields( $variation_id, $i ) {
     $trainer2 = $_POST['trainer2'][$variation_id];
     if ( isset( $trainer2 ) ) {
         update_post_meta( $variation_id, 'trainer2', $_POST['trainer2'][$variation_id]);
+	}
+	$duration = $_POST['duration'][$variation_id];
+    if ( isset( $duration ) ) {
+        update_post_meta( $variation_id, 'duration', $_POST['duration'][$variation_id]);
     }
 }
 
