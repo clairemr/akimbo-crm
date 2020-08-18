@@ -37,7 +37,7 @@ class Akimbo_Crm_Availability{
 			$this->booking_date = $detail->session_date;
 			$this->products = $detail->prod_id;
 		}
-		if(!$this->details['availabilities']){
+		if(!isset($this->details['availabilities'])){
 			$table = $wpdb->prefix.'crm_booking_meta';
 			$data = array(
 				'avail_id' => $this->id,
