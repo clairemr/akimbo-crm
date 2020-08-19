@@ -37,7 +37,7 @@ crm_update_weeks_or_sessions($item_id)//admin update form, currently on enrolmen
  * wp_list_pluck is my new favourite thing
  */
 
-function akimbo_crm_get_product_ids_by_age($age_slug){
+/*function akimbo_crm_get_product_ids_by_age($age_slug){
 	$args = array ( 
 		'post_type'  => 'product',
 		'posts_per_page'  => -1,
@@ -53,10 +53,51 @@ function akimbo_crm_get_product_ids_by_age($age_slug){
 		$products = wp_list_pluck( $query->posts, "ID");
 	}
 	return $products;
+}*/
+
+/**
+ * Replaces above function in 2.1. May have been made redundant though, previously used in Account functions
+ */
+function akimbo_crm_return_posts_by_meta($key, $value, $format = "object"){
+	$result = false;
+	$args = array ( 
+		'post_type'  => 'product',
+		'posts_per_page'  => -1,
+		'meta_query' => array( 
+			array( 
+			 'key' => $key, 
+			 'value' => $value,
+			), 
+		  ),
+		); 
+	$query = new WP_Query( $args );
+	if ( $query->have_posts() ){
+		$result = ($format == "id") ? wp_list_pluck( $query->posts, "ID") : $query->posts;	
+	}
+	return $products;
 }
 
-
-
+function crm_return_orders_by_meta($key, $value, $date = NULL){
+	$matched_orders = array();
+	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC') );
+	$orders = $query->get_orders();//get all orders
+	foreach ( $orders as $order ) {
+		$items = $order->get_items();
+		foreach ( $items as $item) {
+			if($date != NULL){
+				$metadata = date('Y-m-d H:i', strtotime($item->get_meta($key, true)));
+				$value = date('Y-m-d H:i', strtotime($value));
+			}else{
+				$metadata = $item->get_meta($key, true);
+			}
+			if($metadata && $metadata == $value){// 
+				$matched_orders[] = $order;
+			}
+		}
+	}
+	if(count($matched_orders) <= 0){$matched_orders = false;}
+	return $matched_orders;
+}
 
 add_filter( 'manage_edit-shop_order_columns', 'akimbo_crm_add_order_items_column_header', 20 );//add items column header
 add_action( 'manage_shop_order_posts_custom_column', 'akimbo_crm_add_order_items_column_content' );//Add items column to order posts page
@@ -96,46 +137,61 @@ echo "<p>Your cart is currently empty! Visit our <a href='".$shop_url."'>online 
 *
 
 crm_admin_order_link($order_id, $text = NULL)//link to admin order page from order_id. $text sets display or plain url
-function crm_admin_order_link_from_item_id($item_id, $text = NULL)//link to admin order page from item_id. $text sets display or plain url
+
 crm_get_or_set_expiry($order, $item_id)//gets expiry date, or sets default 1 year expiry if not set
 crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = "weeks") //return count from attendance table for given item id
-crm_get_order_available_passes($order, $product_ids = NULL) //return array of item info for a given order, with $item_info['available'] set to true/false. For single item only. Product ID check not currently working. This is the main check, used in user class. Check qty calculates correctly
 get_all_orders_items_from_a_product_variation( $variation_id ){// returns array of order items ids
 get_all_orders_from_a_product_id( $product_id, $ids = NULL ){//return $ids (if true) or array of results
 crm_product_get_age_slug($product_id){//based on product category, Private lessons, Adult Classes, Kids Classes or Playgroup
-crm_casual_or_enrolment($product_id)//based on product tags casual/enrolment.Update to _is_bookable & is_casual
+
+crm_product_meta_type($product_id)//replaces crm_casual_or_enrolment in 2.2 and returns booking, casual or enrolment
 */
 
-function crm_admin_order_link($order_id, $text = NULL){
+function crm_admin_order_link($order_id, $text = NULL, $return = false){
 	$url = get_site_url()."/wp-admin/post.php?post=".$order_id."&action=edit";
 	if($text != NULL){
-		echo "<a href='".$url."'>".$text."</a>";
+		if($return == false){
+			echo "<a href='".$url."'>".$text."</a>";
+		}else{
+			return "<a href='".$url."'>".$text."</a>";
+		}
 	}else{
 		return $url;
 	}	
 }
 
-function crm_admin_order_link_from_item_id($item_id, $text = NULL){
-	$order_id = crm_order_id_from_item_id($item_id);
-	$url = get_site_url()."/wp-admin/post.php?post=".$order_id."&action=edit";
-	if($text != NULL){
-		echo "<a href='".$url."'>".$text."</a>";
-	}else{
-		return $url;
-	}	
+function crm_order_info_from_item_id($item_id, $format = "object", $text = NULL){
+	global $wpdb;
+	$order_id = $wpdb->get_var("SELECT order_id FROM {$wpdb->prefix}woocommerce_order_items WHERE order_item_id = $item_id");
+	$result = false;
+	if(( $order_id >= 1)){
+		if($format == "object"){
+			$result = wc_get_order( $order_id );
+		}elseif($format == "url"){
+			if($text != NULL){
+				echo crm_admin_order_link($order_id, $text, false);
+			}else{
+				$result = crm_admin_order_link($order_id);
+			}	
+		}else{
+			$result = $order_id;
+		}
+	}
+	return $result;
+}
+
+//Replaced by above function
+/*function crm_admin_order_link_from_item_id($item_id, $text = NULL){
+	crm_order_info_from_item_id($item_id, "url", $text);
 }
 
 function crm_order_id_from_item_id($item_id){
-	global $wpdb;
-	$order_id = $wpdb->get_var("SELECT order_id FROM {$wpdb->prefix}woocommerce_order_items WHERE order_item_id = $item_id");
-	return $order_id;
+	crm_order_info_from_item_id($item_id, $format = "id");
 }
 
 function crm_order_object_from_item_id($item_id){
-	$order_id = crm_order_id_from_item_id($item_id);
-	$order = ( $order_id >= 1) ? wc_get_order( $order_id ) : false;
-	return $order;
-}
+	crm_order_info_from_item_id($item_id, $format = "object");
+}*/
 
 function crm_get_or_set_expiry($order, $item_id){
 	$exp_date = wc_get_order_item_meta( $item_id, 'expiry_date', true);
@@ -152,16 +208,6 @@ function crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = "week
 	global $wpdb;
 	$passes = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = '$item_id'");
 	return $passes;
-}
-
-function crm_get_order_available_passes($order, $product_ids = NULL){
-	global $wpdb;
-	$items = $order->get_items();
-	foreach($items as $item){
-		$item_info = crm_get_item_available_passes($item->get_id());
-	}
-	
-	return $item_info;
 }
 
 
@@ -224,6 +270,15 @@ function crm_get_item_available_passes($item_id, $order = NULL){
 				$item_info['remaining'] = ($passes * $item_info['qty']) - $item_info['used'];
 				$item_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$item_info['$order_id']."/'>View Order</a>";	
 				//$order_info['type'] = "casual";
+				$item_info['type'] = (get_post_type($order_id) == "renewal") ? "subscription" : "order";
+				
+				//add in subscription function to avoid having to pass subscription object
+				/*$subscription_info['parent'] = $parent;
+				$subscription_info['active'] = true;
+				$subscription_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-subscription/".$subscription_info['id']."/'>View Subscription</a>";
+				$subscription_info['next'] = $subscription->get_date( 'next_payment' );*/
+
+
 			}
 		}else{//not a bookable item
 		}
@@ -295,23 +350,35 @@ function crm_product_get_age_slug($product_id){
 }
 
 /**
- *
- * For a given product ID, return class_type casual, enrolment or party. Based on product tags
- * 
+ * Replaces crm_casual_or_enrolment in 2.2
+ * Returns booking, casual or enrolment
  */
-function crm_casual_or_enrolment($product_id){
-	global $wpdb;
-	if ( has_term( 'casual', 'product_tag', $product_id ) ){
-		$class_type = "casual";
-	}elseif( has_term( 'enrolment', 'product_tag', $product_id ) ){
-		$class_type = "enrolment";
-	}elseif( has_term( 'party', 'product_tag', $product_id ) ){
-		$class_type = "party";
+function crm_product_meta_type($product_id){
+	$is_booking = get_post_meta($product_id, 'is_booking', true );
+	$is_casual = get_post_meta($product_id, 'is_casual', true );
+	$is_bookable = get_post_meta($product_id, 'is_bookable', true );
+	if($is_booking){
+		$result = "booking";
+	}elseif($is_casual){
+		$result = "casual";
+	}elseif($is_bookable){//bookable, but not casual or private booking
+		$result = "enrolment";
 	}else{
-		$class_type = NULL;
+		$result = false;
 	}
+	return $result;
+}
 
-	return $class_type;
+/**
+ * Designed to work with the above function, crm_product_meta_type
+ */
+function crm_check_class_type($class_id){
+	global $wpdb;
+	$class_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$class_id'");
+	if($class_info){
+		$products = unserialize($class_info->prod_id);
+		return crm_product_meta_type($products[0]);
+	}
 }
 
 
@@ -370,7 +437,7 @@ function cak_crm_admin_order_items_headers($order){
 function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
   	global $wpdb;
   	echo "<td class='sessions'>";
-  	$order = crm_order_id_from_item_id($item_id);
+  	$order = crm_order_info_from_item_id($item_id, "id");
 	if (!$order) {//refund, avoid error message
 	}else{
 		$product_id = $item['product_id'];
@@ -378,21 +445,27 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 		if(!$is_bookable){
 			echo "Not bookable";
 		}else{
-			$class_type = crm_casual_or_enrolment($product_id); 
+			$class_type = crm_product_meta_type($product_id);
 			switch ($class_type) {
 			    case "casual":
 			        $sessions = wc_get_order_item_meta($item_id, "pa_sessions");
 					if($sessions <= 0){
 						wc_update_order_item_meta($item_id, "pa_sessions", 1);//sessions default to 1 unless set otherwise
-						echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'>Set</a>";
+						$text = "Set";
 					} else {
-						echo $sessions." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'>Reset</a>";
+						$text = $sessions." Reset";
 					}
+					$args = array(
+						"order" => $item['order_id'],
+						"item_id" => $item_id,
+					);	
+					akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
 			        break;
 			    case "enrolment":
 			        $class_id = ($item['variation_id'] >= 1) ? $item['variation_id'] : $product->get_id();
 			        $weeks = wc_get_order_item_meta($item_id, "weeks");
-			        $semester = ucwords(wc_get_order_item_meta($item_id, "semester"));
+					$semester = ucwords(wc_get_order_item_meta($item_id, "semester"));
+					if($semester == NULL){$semester = ucwords(wc_get_order_item_meta($item_id, "pa_semester"));}//some use pa_semester
 			        if($semester == NULL){// || !isset($weeks)
 			        	echo "Please update semester";
 			        }else{
@@ -400,10 +473,18 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 			        	echo $weeks."/".$classes;
 			        	if($weeks <= 0 && $classes >= 1 && $item->get_total() >= 1){
 							wc_update_order_item_meta($item_id, "weeks", $classes);//use update, not add, so it won't enter additional rows
-							echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'><button>Update</button></a>";//refresh window
+							$format = "button";
+							$text = "Update";
 						}else{
-							echo " <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=enrolment&order=".$item['order_id']."&item_id=".$item_id."'>Reset</a>";
+							$format = "display";
+							$text = "Reset";
 						}
+						$args = array(
+							"order" => $item['order_id'],
+							"item_id" => $item_id,
+						);	
+				    	akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
+
 						if($weeks >= 1 && $classes >= 1 && $weeks != $classes){
 							$price = $product->get_price();
 							if($price != NULL){
@@ -415,13 +496,20 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 						}
 			        }		
 			        break;
-				    case "party":
-				    	$book_date = date("ga D jS M", strtotime(wc_get_order_item_meta($item_id, "_book_date")));
-				    	if($book_date){
-				    		echo $book_date." <a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&order=".$item['order_id']."&item_id=".$item_id."'>Reset</a>";
-				    	}else{
-				        	echo "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm4&order=".$item['order_id']."&item_id=".$item_id."'>Set date</a>";
-				        }
+					case "booking":
+						$args = array(
+							"order" => $item['order_id'],
+							"product_id" => $item->get_product_id(),
+						);
+						$book_date = wc_get_order_item_meta($item_id, "_book_date");
+						if($book_date){
+							echo date("g:ia D jS M", strtotime($book_date)).". ";
+							$text= "Reset";
+							$args["book_date"] = date("Y-m-d-H:i", strtotime($book_date));
+						}else{
+							$text = "Set Date";
+						}	
+				    	akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
 			        break;
 			    default:
 			}
@@ -461,8 +549,7 @@ function crm_update_order_meta (){
 		$result = wc_update_order_item_meta($item_id, $meta_key, $meta_data);
 	}
 	if($result){
-		$url = get_site_url();
-		$url .= (isset($_POST['url'])) ? $_POST['url'] : crm_admin_order_link_from_item_id($item_id);
+		$url = (isset($_POST['url'])) ? get_site_url().$_POST['url'] : crm_order_info_from_item_id($item_id, $format = "url");
 		wp_redirect( $url ); 
 		exit;
 	}
@@ -476,6 +563,7 @@ function crm_update_order_meta (){
 ****************************************************************************************************************************************/
 
 function crm_display_enrolment_issues(){
+	global $wpdb;
 	echo "Display all Youth/Junior Circus orders where weeks != weeks_used OR weeks/weeks_used not set";
 	$classes = array_merge(get_all_orders_from_a_product_id( '1473' ), get_all_orders_from_a_product_id( '1479' ));
 
@@ -532,3 +620,17 @@ function enrolment_issues_weeks_used_update(){
 	wp_redirect( $url ); 
 	exit;	
 }
+
+/*
+* Archived 19/08/2020
+*/
+
+/*function crm_get_order_available_passes($order, $product_ids = NULL){
+	global $wpdb;
+	$items = $order->get_items();
+	foreach($items as $item){
+		$item_info = crm_get_item_available_passes($item->get_id());
+	}
+	
+	return $item_info;
+}*/

@@ -51,11 +51,21 @@ class Akimbo_Crm_Class{
 	}
 	
 	function get_product_id(){
+		$products = unserialize($this->class_info->prod_id);
+		$result = crm_product_meta_type($products[0]);
 		return $this->class_info->prod_id;
 	}
 	
+	function get_the_title(){
+		return $this->class_info->class_title;
+	}
+
 	function get_class_type(){
-		$class_type = crm_casual_or_enrolment($this->get_product_id());
+		/**
+		 * find crm_casual_or_enrolment <-- In order functions. Hopefully outdated now. Replace with product meta data
+		 */
+		$class_type = crm_product_meta_type($this->get_product_id());
+		//$class_type = crm_casual_or_enrolment($this->get_product_id());
 		if($class_type == NULL){
 			$class_type = ($this->class_info->age_slug == "kids") ? "enrolment" : "casual";
 		}
@@ -96,10 +106,12 @@ class Akimbo_Crm_Class{
 		global $wpdb;
 		if($student_id == NULL){
 			$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance WHERE class_list_id = '$this->class_id' ORDER BY student_name");
+			$student_info['attended'] = 0;
 			foreach ($students as $result){
 				$student = new Akimbo_Crm_Student($result->student_id);
 				$student->{'att_id'} = $result->attendance_id;
 				$student->{'attended'} = $result->attended;
+				$student_info['attended'] += $result->attended;
 				$student->{'ord_id'} = $result->ord_id;
 				$student_list[] = $student;
 				$student_ids[] = $student->student_id;
@@ -115,7 +127,7 @@ class Akimbo_Crm_Class{
 			$student_info['student_ids'] = (isset($student_ids)) ? $student_ids : array();
 			$student_info['user_list'] = (isset($user_list)) ? $user_list : array();
 			$student_info['email_list'] = (isset($email_list)) ? $email_list : array();
-			$student_info['unpaid_students'] = (isset($unpaid_students)) ? $unpaid_students : array();
+			$student_info['unpaid_students'] = (isset($unpaid_students)) ? $unpaid_students : NULL;
 			$student_info['count'] = (isset($student_info['student_list'])) ? count($student_info['student_list']) : 0;
 			$student_info['orders'] = (isset($orders)) ? $orders : array();
 		}else{

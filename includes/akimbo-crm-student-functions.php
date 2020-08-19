@@ -41,6 +41,7 @@ function crm_find_duplicate_students($url = NULL){
 	//Future update: also find students where user is the same and first name is the same
 	global $wpdb;
 	echo "<h2>Duplicate Students:</h2>";
+	echo "<details>";
 	$url = ($url == NULL) ? akimbo_crm_permalinks("students") : $url;
 	$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_students ORDER BY user_id");
 	$distinct_students = array();
@@ -72,6 +73,7 @@ function crm_find_duplicate_students($url = NULL){
 		$user_id = $student->user_id;
 	}
 	if($duplicates == false){echo "No duplicates found";}
+	echo "</details>";
 }
 
 function crm_merge_duplicate_students_button($student1, $student2){//discard $student2
@@ -151,11 +153,11 @@ function crm_student_dropdown($name = "student", $exclude = NULL){//takes array 
 function akimbo_crm_get_students($age = NULL, $status = 'all', $semester_slug = NULL){//kids, all/current/not_returning
 	global $wpdb;
 	$students = $wpdb->get_col("SELECT student_id FROM {$wpdb->prefix}crm_students ORDER BY student_firstname");
+	$semester = akimbo_term_dates('return');//do this either way
 	if($semester_slug == NULL){
-		$semester = akimbo_term_dates('return');//get current semester slug
 		$semester_slug = $semester['slug'];
 	}
-	$past_slug = akimbo_previous_semester($semester_slug);
+	$past_slug = $semester['previous'];//akimbo_previous_semester($semester_slug);
 	foreach($students as $student_id){
 		$student = new Akimbo_Crm_Student($student_id);
 		if($age != NULL){
@@ -204,7 +206,7 @@ function update_student_details_form($id = NULL, $url = NULL, $admin = NULL){//$
 			echo "<br/>Managing User: ";
 			$user_id = ($id != NULL) ? $info->user_id : 1;
 			akimbo_user_dropdown("user_id", $user_id);
-			echo $student->user_admin_link("View Managing User");
+			if($user_id >=2){echo $student->user_admin_link("View Managing User");}
 		}else{//not admin, use user id
 			?><input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>"> <?php
 		}
@@ -496,7 +498,7 @@ function kids_class_enrolment(){//matched orders, where item_id is given
  */
 
 //Unenrol single student, with attendance ID provided
-function crm_student_unenrol_button($att_id, $class_type){
+function crm_student_unenrol_button($att_id, $class_type = NULL){
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
 		if($class_type != NULL){echo "<input type='hidden' name='class_type' value='".$class_type."'>";}
 		?><input type="hidden" name="att_id" value="<?php echo $att_id; ?>"> 

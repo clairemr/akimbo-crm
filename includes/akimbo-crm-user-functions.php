@@ -17,6 +17,14 @@ add_action('user_register', 'akimbo_crm_auto_add_user_as_student');
 add_action('woocommerce_created_customer', 'akimbo_crm_auto_add_user_as_student_woocommerce'); 
 add_action( 'admin_post_user_add_new_student', 'user_add_new_student_process' );
 
+function crm_user_name_from_id($user_id){
+	$user_info = get_userdata($user_id);
+	return $user_info->display_name;
+}
+
+/**
+ * Don't think this function is used anywhere??
+ */
 function akimbo_user_dropdown_shortcode($var){
 	extract(shortcode_atts(array('name' => '', 'current' => '', 'role' => ''), $var));
 	akimbo_user_dropdown($name, $current);
@@ -37,6 +45,12 @@ function akimbo_user_dropdown($name, $current = NULL){
 	}
 	echo "</select>";
 }
+
+/**
+ * Add function akimbo_crm_get_available_user_orders,
+ * then use below function to display only.
+ * Get function can then be used in user class too
+ */
 
 function crm_select_available_user_orders($user_id, $name="item_id"){//$class_type = NULL <-- add check later
 	global $wpdb;

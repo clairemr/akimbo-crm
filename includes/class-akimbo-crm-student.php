@@ -140,6 +140,20 @@ class Akimbo_Crm_Student{
 		return $result;
 	}
 
+	function new_or_returning(){
+		$semester = NULL;
+		$result = "new";
+		foreach($this->classes as $class){
+			//if student has attended for multiple semesters
+			if($semester != NULL && $class->semester_slug != $semester){
+				$result = "returning";
+				break;
+			}
+			$semester = $class->semester_slug;
+		}
+		return $result;
+	}
+
 	//is_new() //check whether first & last class semester slugs are the same
 
 	function first_class(){

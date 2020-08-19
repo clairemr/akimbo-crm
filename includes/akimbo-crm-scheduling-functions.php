@@ -10,11 +10,20 @@ add_action( 'admin_post_crm_add_new_semester', 'crm_add_new_semester' );
 *
 */
 function akimbo_crm_manage_schedules(){
+	global $wpdb;
 	$capability = 'manage_options';
 	if (current_user_can($capability)){
 		if(isset($_GET['message'])){
 			$message = ($_GET['message'] == "success") ? "<div class='updated notice is-dismissible'><p>Schedule added!</p></div>" : "<div class='error notice is-dismissible'><p>Update failed, please try again</p></div>";
-			echo apply_filters('manage_classes_schedule_update_notice', $message);}
+			echo apply_filters('manage_classes_schedule_update_notice', $message);
+		}
+		if(isset($_GET['class_id'])){
+			$class = new Akimbo_Crm_Class($_GET['class_id']);
+			echo "<h2>Edit Class: ".$class->get_the_title()."</h2>";
+			echo "<strong>Age: </strong>".$class->age_slug()."<br/><strong>Type: </strong>".$class->get_class_type()."<br/><strong>Semester: </strong>".$class->class_semester()."<br/>";
+			crm_update_class_date_form($class);
+			echo "<hr>";	
+		}
 		echo "<h2>Semesters</h2>";
 		display_semesters("future");
 		echo apply_filters('manage_classes_add_semester_button', crm_add_new_semester_button());
@@ -22,39 +31,27 @@ function akimbo_crm_manage_schedules(){
 		echo "<br/><hr><h2>Add New Class Schedule</h2>";
 		crm_add_new_class_schedule();
 		echo "<br/><hr><h2>Confirm Enrolments</h2>";
-		$args = array ( 
-			'post_type'  => 'product',
-			'posts_per_page'  => -1,
-			'meta_query' => array( 
-				 array('key' => 'is_bookable', 'value' => 'on',), 
-			), 
-		); 
-		$products = new WP_Query($args);
-		$posts = $products->posts;
-		global $wpdb;
-		$today = current_time('Y-m-d');
+		$posts = crm_get_posts_by_type("enrolment", "return", NULL);
 		foreach($posts as $product){
-			$is_casual = get_post_meta($product->ID, 'is_casual', true );
-			if($is_casual){}else{
-				$args = array(
-				    'post_type'     => 'product_variation',
-				    'post_status'   => array( 'private', 'publish' ),
-				    'numberposts'   => -1,
-				    'orderby'       => 'menu_order',
-				    'order'         => 'asc',
-				    'post_parent'   => $product->ID // get parent post-ID
-				);
-				$variations = get_posts( $args );
-				if($variations != NULL){//add these details in separate function
-					foreach($variations as $variation){
-						$title = $variation->post_title.", ".$variation->post_excerpt;//use excerpt to get Class Time
-						crm_confirm_class_schedule($variation->ID, $title, $product->ID);
-					}
-				}else{
-					crm_confirm_class_schedule($product->ID, $product->post_title);
-				}	
-			}
+			$args = array(
+				'post_type'     => 'product_variation',
+				'post_status'   => array( 'private', 'publish' ),
+				'numberposts'   => -1,
+				'orderby'       => 'menu_order',
+				'order'         => 'asc',
+				'post_parent'   => $product->ID // get parent post-ID
+			);
+			$variations = get_posts( $args );
+			if($variations != NULL){//add these details in separate function
+				foreach($variations as $variation){
+					$title = $variation->post_title.", ".$variation->post_excerpt;//use excerpt to get Class Time
+					crm_confirm_class_schedule($variation->ID, $title, $product->ID);
+				}
+			}else{
+				crm_confirm_class_schedule($product->ID, $product->post_title);
+			}	
 		}
+		
 		
 		
 		//https://stackoverflow.com/questions/47518280/create-programmatically-a-woocommerce-product-variation-with-new-attribute-value <-- add new variation		
@@ -125,29 +122,24 @@ function product_details_add() {
 
 function product_details_call( $post ) {
 	$details = get_post_meta(get_the_ID());
-	echo "<input type='checkbox' name='is_bookable' id='is_bookable'";//disable this option for now
+	//Enable Akimbo CRM
+	echo "<input type='checkbox' name='is_bookable' id='is_bookable'";
 	if(isset($details['is_bookable'])){echo "checked";}
-	echo " >Allow scheduling. ";
-	echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";//disable this option for now
-	if(isset($details['is_casual'])){echo "checked";}
-	echo " >Casual Class. ";
-	
+	echo " >Enable Akimbo CRM. ";//use for all products in CRM
 	if(isset($details['is_bookable'])){
+		// Casual Class product
+		echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";
+		if(isset($details['is_casual'])){echo "checked";}
+		echo " >Casual Class. ";
+		// Private booking
+		echo "<br/><input type='checkbox' name='is_booking' id='is_booking'";
+		if(isset($details['is_booking'])){echo "checked";}
+		echo " >Private booking. ";
+
+		/**
+		 * Get variation information
+		 */
 		$product_id = get_the_ID();
-		$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
-		echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
-		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "";
-		echo "<br/>Age Groups: <select name='age_slug'>";
-		if(isset($details['age_slug'])){
-			echo "<option value='".$details['age_slug'][0]."'>".ucwords($details['age_slug'][0])."</option><option>***</option>";
-		} 
-		echo "<option value='kids'>Kids</option>
-			<option value='adult'>Adult</option>
-			<option value='playgroup'>Playgroup</option>
-			<option value='private'>Private</option>
-			</select>";
-		$trial_product = (isset($details['trial_product'])) ? $details['trial_product'][0] : 0;
-		echo "<br/>Trial Product: <input type='number' value='".$trial_product."' name='trial_product'>";
 		$args = array(
 		    'post_type'     => 'product_variation',
 		    'post_status'   => array( 'private', 'publish' ),
@@ -157,20 +149,56 @@ function product_details_call( $post ) {
 		    'post_parent'   => $product_id // get parent post-ID
 		);
 		$variations = get_posts( $args );
-		if($variations != NULL){//add these details in separate function
-			echo "<br/><i>Use the variations tab below to add class times and trainers.</i>";
+		//Set age slug for all CRM products
+		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "";
+		echo "<br/>Age: <select name='age_slug'>";
+		if(isset($details['age_slug'])){
+			echo "<option value='".$details['age_slug'][0]."'>".ucwords($details['age_slug'][0])."</option><option>***</option>";
+		} 
+		echo "<option value='kids'>Kids</option>
+			<option value='adult'>Adult</option>
+			<option value='playgroup'>Playgroup</option>
+			<option value='private'>Private</option>
+			</select>";
+
+		/**
+		 * Classes
+		 */
+		if(!isset($details['is_booking'])){
+			$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
+			echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+			$trial_product = (isset($details['trial_product'])) ? $details['trial_product'][0] : 0;
+			echo "<br/>Trial Product: <input type='number' value='".$trial_product."' name='trial_product'>";
+			if($variations != NULL){//add these details in separate function
+				echo "<br/><i>Use the variations tab below to add class times and trainers.</i>";
+			}else{
+				if(!isset($details['is_casual'])){//and post type != variable product
+					//<input type="time" value="13:00" step="900">
+					$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
+					echo "<br/>Start Time: <input type='time' value='".$start_time."' name='start_time' id='start_time'>";
+					echo "<br/>Trainers:";
+					$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
+					crm_trainer_dropdown_select("trainer1", $trainer1);
+					$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
+					crm_trainer_dropdown_select("trainer2", $trainer2);
+				}
+			}	
 		}else{
-			if(!isset($details['is_casual'])){//and post type != variable product
-				//<input type="time" value="13:00" step="900">
-				$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
-				echo "<br/>Start Time: <input type='time' value='".$start_time."' name='start_time' id='start_time'>";
-				echo "<br/>Trainers:";
-				$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
-				crm_trainer_dropdown_select("trainer1", $trainer1);
-				$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
-				crm_trainer_dropdown_select("trainer2", $trainer2);
-			}
-		}	
+		/**
+		 * Private bookings
+		 */
+			if($variations != NULL){//add these details in separate function
+				echo "<br/><i>Use the variations tab below to add booking information.</i>";
+			}else{
+				$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
+			echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+			}	
+		}
+		
+
+		
+		
+	
 	}
 	submit_button();
 }
@@ -181,6 +209,9 @@ function product_details_save($post_id){
     }
     if (array_key_exists('is_casual', $_POST)) {
         update_post_meta($post_id,'is_casual', $_POST['is_casual']);
+	}
+	if (array_key_exists('is_booking', $_POST)) {
+        update_post_meta($post_id,'is_booking', $_POST['is_booking']);
     }
     if (array_key_exists('duration', $_POST)) {
         update_post_meta($post_id,'duration', $_POST['duration']);
@@ -203,17 +234,31 @@ function product_details_save($post_id){
 }
 
 function variation_settings_fields( $loop, $variation_data, $variation ) {
-	$details = $variation_data;
-	$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
-	$stname = "start_time[".$variation->ID."]";
-	echo "<br/>Start Time: <input type='time' value='".get_post_meta($variation->ID, 'start_time', true)."' name='".$stname."'>";// readonly
-	echo "<br/>Trainers:";
-	$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
-	$tr1name = "trainer1[".$variation->ID."]";
-	crm_trainer_dropdown_select($tr1name, $trainer1);
-	$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
-	$tr2name = "trainer2[".$variation->ID."]";
-	crm_trainer_dropdown_select($tr2name, $trainer2);
+	$post_details = get_post_meta(get_the_ID());
+	/**
+	 * Only show on products used by CRM
+	 */
+	if(isset($post_details['is_bookable']) && $post_details['is_bookable']){
+		$details = $variation_data;
+		//var_dump($post_details);
+		//echo $variation['post_parent'];
+		if(isset($post_details['is_booking'])){
+			$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
+			$duration_name = "duration[".$variation->ID."]";
+			echo "<br/>Duration: <input type='number' value='".$duration."' name='".$duration_name."' id='duration'> minutes";
+		}elseif(!isset($post_details['is_casual']) && !isset($post_details['is_booking'])){//casual info set on schedule page
+			$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
+			$stname = "start_time[".$variation->ID."]";
+			echo "<br/>Start Time: <input type='time' value='".get_post_meta($variation->ID, 'start_time', true)."' name='".$stname."'>";// readonly
+			echo "<br/>Trainers:";
+			$trainer1 = (isset($details['trainer1'])) ? $details['trainer1'][0] : NULL;
+			$tr1name = "trainer1[".$variation->ID."]";
+			crm_trainer_dropdown_select($tr1name, $trainer1);
+			$trainer2 = (isset($details['trainer2'])) ? $details['trainer2'][0] : NULL;
+			$tr2name = "trainer2[".$variation->ID."]";
+			crm_trainer_dropdown_select($tr2name, $trainer2);
+		}
+	}	
 }
 
 function save_variation_settings_fields( $variation_id, $i ) {
@@ -229,6 +274,10 @@ function save_variation_settings_fields( $variation_id, $i ) {
     $trainer2 = $_POST['trainer2'][$variation_id];
     if ( isset( $trainer2 ) ) {
         update_post_meta( $variation_id, 'trainer2', $_POST['trainer2'][$variation_id]);
+	}
+	$duration = $_POST['duration'][$variation_id];
+    if ( isset( $duration ) ) {
+        update_post_meta( $variation_id, 'duration', $_POST['duration'][$variation_id]);
     }
 }
 
@@ -260,7 +309,7 @@ function crm_add_new_class_schedule($product_id = NULL, $variation_id = NULL, $u
 function add_new_schedule(){
 	global $wpdb;
 	if(!isset($_POST['product_id'])){//get product info from db
-		$class_title = ($_POST['new_class_name']) ? $_POST['new_class_name'] : $_POST['class_name'];//add new title or use existing name
+		$class_name = ($_POST['new_class_name']) ? $_POST['new_class_name'] : $_POST['class_name'];//add new title or use existing name
 		$class_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE class_title = '$class_name' ORDER BY session_date DESC LIMIT 1");//DESC == most recent
 		if(isset($_POST['virtual']) && $_POST['virtual'] == true){
 			$class_id = 2;
@@ -269,13 +318,16 @@ function add_new_schedule(){
 		}else{
 			$class_id = 1;
 		}
+		$duration = $class_info->duration;
+		$age_slug = $class_info->age_slug;
+		$prod_id = $class_info->prod_id;
 	}else{//get post meta
 		$class_name = get_the_title($_POST['product_id']);
 		$details = get_post_meta($_POST['product_id']);
 		$duration = $details['duration'][0];
-		$age_slug = $details['age_slug'][0];
+		$age_slug = (isset($details['age_slug'])) ? $details['age_slug'][0] : "kids";
 		$trial_product = get_post_meta($_POST['product_id'], 'trial_product', true );
-		$prod_id = (isset($trial_product)) ? serialize(array($_POST['product_id'], $trial_product)) : serialize(array($_POST['product_id']));
+		$prod_id = (isset($trial_product) && $trial_product >= 1) ? serialize(array($_POST['product_id'], $trial_product)) : serialize(array($_POST['product_id']));
 		$class_id = (isset($_POST['class_id'])) ? $_POST['class_id'] : $_POST['product_id'];
 	}
 
@@ -308,7 +360,6 @@ function add_new_schedule(){
 	$url = ($_POST['url'] != NULL) ? $_POST['url']."&message=".$message : get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=schedule&message=".$message;	
 	wp_redirect( $url ); 
 	exit;
-	
 }
 
 /*
@@ -405,13 +456,8 @@ function add_new_class_name(){//haven't tested this or built the function to ins
 	<?php
 }
 
-//Not currently in use
 function crm_calculate_pro_rata_price(){
-	//echo "Select product, select weeks. Return price + GST";
-	//information to receive through AJAX
-	$new_weeks = 9;
-	//end information to receive through AJAX
-	
+	$new_weeks = 9;	
 	$product_price = 180;
 	$weeks = 10;
 	$new_total = ($product_price/$weeks) * $new_weeks;
@@ -423,35 +469,4 @@ function crm_calculate_pro_rata_price(){
 		'GST' => $new_GST,
 	);
 	return $result;
-
-
-
-	/*
-	//https://stackoverflow.com/questions/50163551/change-order-item-prices-in-woocommerce-3
-	$order_id = 809; // Static order Id (can be removed to get a dynamic order ID from $order_id variable)
-
-	$order = wc_get_order( $order_id ); // The WC_Order object instance
-
-	// Loop through Order items ("line_item" type)
-	foreach( $order->get_items() as $item_id => $item ){
-	    $new_product_price = 50; // A static replacement product price
-	    $product_quantity = (int) $item->get_quantity(); // product Quantity
-
-	    // The new line item price
-	    $new_line_item_price = $new_product_price * $product_quantity;
-
-	    // Set the new price
-	    $item->set_subtotal( $new_line_item_price ); 
-	    $item->set_total( $new_line_item_price );
-
-	    // Make new taxes calculations
-	    $item->calculate_taxes();
-
-	    $item->save(); // Save line item data
-	}
-	// Make the calculations  for the order
-	$order->calculate_totals();
-
-	$order->save(); // Save and sync the data
-	*/
 }

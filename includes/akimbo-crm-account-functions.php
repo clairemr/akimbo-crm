@@ -79,10 +79,17 @@ function akimbo_crm_account_dashboard(){
 	echo "<h2>Upcoming ".ucwords($age)." Classes</h2>";
 	echo "<i>Student: ".$student->first_name()."</i><br/>";
 	$user->display_user_orders_account($age);
-	$products = akimbo_crm_get_product_ids_by_age($age);
-	var_dump($products);
-	crm_bookable_timetable($age, 14, $user, $student);
-	
+	/**
+	 * This function may now be redundant
+	 * akimbo_crm_get_product_ids_by_age($age);
+	 */
+	/*$products = akimbo_crm_get_product_ids_by_age($age);
+	var_dump($products);*/
+	/*$product_id = reset( $products );//get first product
+	$trial_product = get_post_meta($product_id, 'trial_product', true );
+	var_dump($trial_product);*/
+	crm_bookable_timetable($age, 4, $user, $student);
+	crm_bookable_timetable($age, 4, $user, $student, true);//trial version
 }
 
 /*
@@ -93,6 +100,7 @@ function crm_bookable_timetable($age = NULL, $limit = 14, $user = NULL, $student
 	$today = current_time('Y-m-d-h:ia');
 	$student_classes = ($student != NULL) ? $student->get_upcoming_classes(): NULL;//array of class objects
 	$order = ($user != NULL) ? $user->get_available_user_orders($age, true) : NULL;
+	$enrolled = false;
 	
 	if($age == NULL){
 		$class_list_ids = $wpdb->get_results("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' ORDER BY session_date ASC LIMIT $limit");
@@ -107,63 +115,81 @@ function crm_bookable_timetable($age = NULL, $limit = 14, $user = NULL, $student
 		$header .= "<th>Places</th><th></th></tr>";
 		echo $header;
 		foreach($class_list_ids as $class_list_id){
+			/**
+			 * Get Class information
+			 */
 			$class = new Akimbo_Crm_Class($class_list_id->list_id);
 			$class_info = $class->get_class_info();
-			echo "<tr><td>";
-			if($class_info->class_id == 2){echo "Virtual Class: ";}
-			echo $class_info->class_title."<br/><small>".date("g:ia l jS F Y", strtotime($class_info->session_date)).", ".$class_info->location."</small></td><td>";
-			if($age == NULL){echo ucwords($class_info->age_slug)."</td><td>";}//fill age column if needed
-			if($trial == true){//update at some point to take trial info from product metadata
-				$places = $class_info->capacity - $class->student_count();
-						echo "<i>".$places."/".$class_info->capacity." places available</i></td><td>";
-				$product_cat = $class_info->age_slug;
-				if($product_cat == "adult"){
-					$content = "<a href='".get_permalink(1499)."'><button>Book Trial</button></a></td></tr>";
-				}elseif($product_cat == "playgroup"){
-					$content = "<a href='".get_permalink(1536)."'><button>Book Trial</button></a></td></tr>";
-				}else{//default to kids trial
-					$content = "<a href='".get_permalink(2046)."'><button>Book Trial</button></a></td></tr>";
+			$class_capacity = $class->capacity();
+			if(isset($student_classes)){//Get student enrolment information, if student is set and compare to class
+				foreach($student_classes as $student_class){
+					$enrolled = ($class->get_class_info()->list_id == $student_class->list_id) ? true : false;
 				}
-
-				echo $content;
-			}else{
-				$enrolled = false;
-				if(isset($student_classes)){
-					foreach($student_classes as $upcoming_class){
-						if($enrolled == false){//only change if no match found
-							$enrolled = ($class->get_class_info()->list_id == $upcoming_class->list_id) ? true : false;
-						}
-					}
-				}
-				if($enrolled == true){
-					echo apply_filters('akimbo_crm_account_enrol_message', "<b> Enrolled</b></td><td>");
-					if($age != 'kids' && $today <= $class_info->cancel_date) {
-						apply_filters('akimbo_crm_account_session_unenrol', crm_student_unenrol_button($upcoming_class->attendance_id));
-					}
-				}else{
-					$class_student_info = $class->get_student_info();
-					if($class_info->class_id < 1 ){//Open training
-						echo "<i>".$class_student_info['count']." bookings. This session is free with a valid pass!</i></td><td>";
-						if(isset($order)){crm_casual_enrol_button($student->student_id, $class_list_id->list_id, 999999, NULL, $class_info->age_slug);}//eventually change to 'if order is a membership'
-					}else{
-						$places = $class_info->capacity - $class_student_info['count'];
-						echo "<i>".$places."/".$class_info->capacity." places available</i></td><td>";
-						if($class_student_info['count'] >= $class_info->capacity){
-							echo apply_filters('akimbo_crm_account_capacity_reached', "<i>Class Full</i>");
-						}else{
-							$product_ids = unserialize($class_info->prod_id);
-							if($order['remaining'] >= 1 && in_array($order['product_id'], $product_ids) && $age != 'kids'){
-								crm_casual_enrol_button($student->student_id, $class_list_id->list_id, $order['item_id'], NULL, $class_info->age_slug);
-							} else{
-								echo apply_filters('akimbo_crm_account_buy_pass', "<a href='".get_permalink(reset($product_ids))."'><button>Buy Pass</button></a>");//defaults to first value of array
-							}
-						}
-					}
-				}
-			    echo "</td></tr>";
-			    $enrolled = false;
 			}
 			
+			/**
+			 * Display Class row
+			 */
+			echo "<tr><td>";
+			if($class_info->class_id == 2){echo "Virtual Class: ";}//identify virtual classes by class id of 2
+			echo $class_info->class_title."<br/><small>";
+			echo date("g:ia l jS F Y", strtotime($class_info->session_date)).", ".$class_info->location."</small></td><td>";
+			if($age == NULL){echo ucwords($class_info->age_slug)."</td><td>";}//fill age column if needed
+			/**
+			 * If student is enrolled, show "enrolled" and unenrol button
+			 */
+			if($enrolled == true){
+				echo apply_filters('akimbo_crm_account_enrol_message', "<b>Enrolled</b>");
+				echo "</td><td>";
+				if($age != 'kids' && $today <= $class_info->cancel_date) {
+					apply_filters('akimbo_crm_account_session_unenrol', crm_student_unenrol_button($upcoming_class->attendance_id));
+				}
+			/**
+			 * If class is free, allow students with a valid pass to enrol
+			 */
+			}elseif($class_info->class_id < 1){//free classes have class_id of 0
+				$free_class_booking_message = "<i>".$class_capacity['count']." bookings. This session is free with a valid pass!</i>";
+				echo apply_filters('akimbo_crm_account_free_class_booking_message', $free_class_booking_message);
+				echo "</td><td>";
+				//Remove if statement to make it free to everyone or add a check for the order type e.g. membership	
+				if(isset($order)){
+					crm_casual_enrol_button($student->student_id, $class_list_id->list_id, 999999, NULL, $class_info->age_slug);
+				}
+			/**
+			 * If student not enrolled, show available places and appropriate enrol button
+			 */
+			}else{						
+				$capacity_display = "<i>".$class_capacity['places']."/".$class_capacity['capacity']." places available</i></td><td>";
+				echo apply_filters('akimbo_crm_account_capacity_display', $capacity_display);
+				
+				$product_ids = unserialize($class_info->prod_id);
+
+				/**
+				 * Booking button. If class is not full, show appropriate trial or class product
+				 */
+				if($trial == true && !$class_capacity['is_full']){//show trial product
+					$product_id = reset($product_ids);//get first product
+					$trial_product = get_post_meta($product_id, 'trial_product', true );
+					if($trial_product >=1){
+						echo "<a href='".get_permalink($trial_product)."'><button>Book Trial</button></a></td></tr>";
+					}else{
+						echo "<i>Trial unavailable for this class</i></td></tr>";
+					}
+				}elseif(!$class_capacity['is_full']){//show enrol button if user has a valid order, or class product page
+					if($order['remaining'] >= 1 && in_array($order['product_id'], $product_ids) && $age != 'kids'){
+						crm_casual_enrol_button($student->student_id, $class_list_id->list_id, $order['item_id'], NULL, $class_info->age_slug);
+					} else{
+						echo apply_filters('akimbo_crm_account_buy_pass', "<a href='".get_permalink(reset($product_ids))."'><button>Buy Pass</button></a>");//defaults to first value of array
+					}
+				}else{//don't allow bookings for full classes
+					echo apply_filters('akimbo_crm_account_capacity_reached', "<i>Class Full</i>");
+				}
+			}
+			/**
+			 * Reset enrolled variable to run check again on next class
+			 */
+			$enrolled = false;
+			echo "</td></tr>";
 		}
 		echo "</table>";
 	}

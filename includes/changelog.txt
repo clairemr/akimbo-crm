@@ -1,0 +1,24 @@
+Date style: 
+Y-m-d H:i for backend
+g:ia, l jS M for classes and parties
+F, Y months
+l jS F semesters
+
+
+Change all urls to akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args = NULL)
+or akimbo_crm_class_permalink($class_id = NULL, $display = NULL)
+
+Update all date headers to crm_date_selector_header($page, $date = NULL, $period = "month")
+
+Fix business details page (bottom of admin-functions)
+
+Go through custom functions, delete unused and outdated functions
+
+Add SQL table code to plugin so it sets up correctly, once all changes have been made <-- to avoid creating unnecessary tables
+
+References:
+Add custom fields to booking product page
+ * https://wisdmlabs.com/blog/add-custom-data-woocommerce-order-2/ 
+
+Hide quantity button for private bookings
+ * https://www.cloudways.com/blog/hide-product-quantity-field-from-woocommerce-product-pages/

@@ -126,8 +126,8 @@ class AkimboCRM {
 	function akimbo_crm_admin_menu(){//Title, admin panel label, user capabilities, slug, function callback
 		if (current_user_can('upload_files')){
 			$parent_slug = "akimbo-crm";
-			add_menu_page( 'Circus Akimbo Admin', 'Akimbo CRM', 'upload_files', $parent_slug, array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
-			add_submenu_page( $parent_slug, 'Classes', 'Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
+			add_menu_page( 'Akimbo CRM', 'Akimbo CRM', 'upload_files', $parent_slug, array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
+			add_submenu_page( $parent_slug, 'Scheduling', 'Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
 			add_submenu_page( $parent_slug, 'Business Admin', 'Business', 'manage_options', 'akimbo-crm3', array(&$this, 'manage_orders' ), 3);
 			add_submenu_page( $parent_slug, 'Settings', 'Settings', 'manage_options', 'crm-options', array(&$this, 'akimbo_crm_options_page' ), 4);
 		}	
@@ -147,7 +147,7 @@ class AkimboCRM {
 				echo crm_nav_tab($page, "home", "Home", $active_tab);
 				echo crm_nav_tab($page, "classes", "Classes", $active_tab);
 				echo crm_nav_tab($page, "details", "Student Details", $active_tab);
-				echo crm_nav_tab($page, "availabilities", "Availabilities", $active_tab);
+				echo crm_nav_tab($page, "availabilities", "Staff Portal", $active_tab);
 			echo "</h2>";
 			switch ($active_tab) {
 				case "home": echo apply_filters('akimbo_crm_admin_home', akimbo_crm_admin_home_page());
@@ -208,6 +208,7 @@ class AkimboCRM {
 				$active_tab = isset( $_GET[ 'tab' ] ) ? $_GET[ 'tab' ] : 'statistics'; 
 				echo crm_nav_tab($page, "statistics", "Student Statistics", $active_tab);
 				echo crm_nav_tab($page, "business", "Business Details", $active_tab);
+				echo crm_nav_tab($page, "mailchimp", "Mailchimp Integration", $active_tab);
 				echo crm_nav_tab($page, "payroll", "Payroll", $active_tab);
 				echo crm_nav_tab($page, "partydata", "Party Data", $active_tab);
 			echo "</h2>";
@@ -216,7 +217,9 @@ class AkimboCRM {
 			    case "business": apply_filters('akimbo_crm3_business details', akimbo_crm_business_details());//test info in akimbo crm 2.0 functions
 			    break;
 			    case "statistics": include 'includes/includes/student_statistics.php';  	
-			    break;
+				break;
+				case "mailchimp": apply_filters('akimbo_crm3_business details_mailchimp', akimbo_crm_manage_mailchimp_integration($page, $active_tab)); 	
+				break;
 			    case "payroll": apply_filters('akimbo_crm3_business details_payroll', akimbo_crm_manage_payroll()); 	
 				break;
 				case "partydata": include 'includes/includes/party_data.php'; 
@@ -238,16 +241,6 @@ class AkimboCRM {
    		register_setting( 'akimbo_crm_options', 'akimbo_crm_order_message', $args );
    		add_option( 'akimbo_crm_class_booking_window', '-24hrs');
 		register_setting( 'akimbo_crm_options', 'akimbo_crm_class_booking_window', $args );
-		
-		/**
-		 * 	
-		*'To help simplify the transition from Mindbody, 
-		we have created a new account for you in Akimbo CRM 
-		with the details from your previous account. 
-		If you have a moment, please log in and check your 
-		account details have been imported correctly. Next 
-		time you book a class or workshop at Circus Akimbo, you’ll need to use the new system.
-		 */
 
 		//Class products//remove in 2.1
    		/*add_option( 'akimbo_crm_adult_class_products', 'a:2:{i:0;i:308;i:1;i:227;}');
@@ -329,6 +322,7 @@ class AkimboCRM {
 		 * Core classes.
 		 */
 		include_once 'includes/class-akimbo-crm-availability.php';
+		include_once 'includes/class-akimbo-crm-booking.php';
 		include_once 'includes/class-akimbo-crm-class.php';
 		include_once 'includes/class-akimbo-crm-party.php';
 		include_once 'includes/class-akimbo-crm-payroll.php';
@@ -347,6 +341,7 @@ class AkimboCRM {
 		include_once 'includes/akimbo-crm-booking-functions.php';
 		include_once 'includes/akimbo-crm-class-functions.php';
 		include_once 'includes/akimbo-crm-custom-functions.php';
+		include_once 'includes/akimbo-crm-mailchimp-functions.php';
 		include_once 'includes/akimbo-crm-order-functions.php';
 		include_once 'includes/akimbo-crm-scheduling-functions.php';
 		include_once 'includes/akimbo-crm-staff-functions.php';
