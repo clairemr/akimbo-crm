@@ -45,6 +45,7 @@ class Akimbo_Crm_Booking{
 				if($item_data['book_date']){
 					$this->booking_info->book_date = $item_data['book_date'];
 					$this->booking_info->product_id = $item_data['product_id'];
+					$this->booking_info->item_id = $item_id;
 					$this->booking_info->variation = $item_data['name'];
 				}
 				$this->booking_info->guest_of_honour = ($item_data['birthday_name']) ? $item_data['birthday_name'] : NULL;
@@ -57,16 +58,20 @@ class Akimbo_Crm_Booking{
 	}
 	
 	function get_booking_order(){
-		return $this->order;
+		$order = false;
+		if(isset($this->order)){
+			$book_date = date('Y-m-d H:i', strtotime($this->booking_info->book_date));
+			$session_date = date('Y-m-d H:i', strtotime($this->booking_info->session_date));
+			if($book_date == $session_date){//in case of missed duplicate orders
+				$order = $this->order;
+			}
+		}
+		return $order;
 	}
 
 	function match_order(){
-		if($this->class_id >= 1){
-			$matched_orders = array(wc_get_order( $this->class_id ));
-		}else{
-			$matched_orders = crm_match_booking_orders($this->booking_info->session_date);
-		}
-		
+		$session_date = date('Y-m-d H:i', strtotime($this->booking_info->session_date));
+		$matched_orders = crm_return_orders_by_meta('_book_date', $session_date, true);		
 		return $matched_orders;
 	}
 
@@ -75,27 +80,4 @@ class Akimbo_Crm_Booking{
 		$order->get_user();
 	}
 
-	function isset_studio_hire(){
-		//add to settings
-		/***
-		 * Allow booking additional time. Select product
-		 */
-
-		//check if it's in the original order
-		$order = $this->match_order();
-		$items = $order->get_items();
-		foreach ( $items as $item_id => $item_data ) {
-			if($item_data['book_date'] && $item_data['book_date'] == $session_date){
-				$matched_orders[] = $order;
-			}
-		}
-		//else check for additional orders from the same user with studio hire
-		get_all_orders_from_a_product_id( $product_id, $ids = NULL );
-	}
-
-	function add_studio_hire(){
-		//get post option
-		//if not $this->isset_studio_hire()
-	}
-	
 }

@@ -74,13 +74,23 @@ function crm_simple_delete_button_process(){
 	$table = $wpdb->prefix.$_POST['table'];
 	$data_id = $_POST['data_id'];
 	$data = $_POST['data'];	
-	$wpdb->delete( $table, array( $data_id => $data,) );
-	$url = get_site_url().$_POST['redirect'];
+	$result = $wpdb->delete( $table, array( $data_id => $data,) );
+	$message = ($result) ? "success" : "failure";
+	$url = get_site_url().$_POST['redirect']."&message=".$message;
 	wp_redirect( $url ); 
 	exit;	
 }
 
 function crm_date_selector($page = akimbo-crm, $tab=NULL, $display = "Change Date"){
+	?><form action="admin.php" method="get">
+	<input type="hidden" name="page" value="<?php echo $page; ?>" /><?php 
+	if(isset($tab)){ ?> <input type="hidden" name="tab" value="<?php echo $tab; ?>" /> <?php } ?>
+	<input type="date" name="date"><input type="submit" value="<?php echo $display; ?>"></form><br/><?php
+ }
+/**
+ * Should replace above function, works with permalinks
+ */
+function crm_date_selector_permalinks($permalink, $display = "Change Date"){//update permalink function
 	?><form action="admin.php" method="get">
 	<input type="hidden" name="page" value="<?php echo $page; ?>" /><?php 
 	if(isset($tab)){ ?> <input type="hidden" name="tab" value="<?php echo $tab; ?>" /> <?php } ?>

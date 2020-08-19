@@ -2,15 +2,41 @@
 
 /***************************************************************************************************
  *
- * Front end Booking display functions
+ * Add booking dropdown option to all products marked as private bookings in Akimbo CRM
  * 
  ***************************************************************************************************/
+add_shortcode('bookingDateDropdown', 'crm_available_booking_dates_shortcode');
 add_action( 'wp_head', 'crm_hide_booking_quantity' );//hide quantity on booking page
 add_action('woocommerce_before_add_to_cart_button','crm_add_custom_booking_fields');
 add_filter('woocommerce_add_cart_item_data', 'crm_add_booking_item_data',10,3);
 add_filter('woocommerce_get_item_data', 'crm_add_booking_item_meta', 10, 2);
 add_action('woocommerce_checkout_create_order_line_item', 'crm_add_booking_order_line_item_meta', 10, 4);
-add_shortcode('bookingDateDropdown', 'crm_available_booking_dates_shortcode');
+
+/**
+ * Shortcode to display available booking dates. Used on party page
+ */
+function crm_available_booking_dates_shortcode($atts){//$page = null
+	extract(shortcode_atts(array('product' => ''), $atts));
+	$content = crm_available_booking_dates_dropdown($product);
+	return $content;
+}
+
+/**
+ * Display booking availability as <select>. field name = "book_date"
+ */
+function crm_available_booking_dates_dropdown($product_id = 0, $start=NULL){
+	$availability = crm_check_booking_availability($product_id,  $start);
+	$select = "<br/><select name= 'book_date'>";
+	if(isset($availability)){
+		foreach($availability as $avail){
+			$select.= "<option value=' ".$date = date("Y-m-d H:i", strtotime($avail->session_date))."'>".date("g:ia, l jS M Y", strtotime($avail->session_date))."</option>"; 
+		}
+	}else{
+		$select.= "<option>No available dates</option>";
+	}
+	$select.= "</select>";
+	echo $select;
+}
 
 /**
  * Hide quantity button for private bookings
@@ -25,7 +51,7 @@ function crm_hide_booking_quantity() {
 	}
 }
 
- /**
+/**
  * Display custom fields on booking products
  */
 function crm_add_custom_booking_fields(){
@@ -91,33 +117,6 @@ function crm_add_booking_order_line_item_meta($item, $cart_item_key, $values, $o
 		crm_create_booking($item, $values['book_date'], $book_title);
 	}	
 }
-
-/**
- * Shortcode to display available booking dates. Used on party page
- */
-function crm_available_booking_dates_shortcode($atts){//$page = null
-	extract(shortcode_atts(array('product' => ''), $atts));
-	$content = crm_available_booking_dates_dropdown($product);
-	return $content;
-}
-
-/**
- * Display booking availability as <select>. field name = "book_date"
- */
-function crm_available_booking_dates_dropdown($product_id = 0, $start=NULL){
-	$availability = crm_check_booking_availability($product_id,  $start);
-	$select = "<br/><select name= 'book_date'>";
-	if(isset($availability)){
-		foreach($availability as $avail){
-			$select.= "<option value=' ".$date = date("Y-m-d H:i", strtotime($avail->session_date))."'>".date("g:ia, l jS M Y", strtotime($avail->session_date))."</option>"; 
-		}
-	}else{
-		$select.= "<option>No available dates</option>";
-	}
-	$select.= "</select>";
-	echo $select;
-}
-
 
 /****************************************************************************************************
  * 
@@ -268,10 +267,13 @@ function crm_create_booking($item, $book_date, $book_title = "Private Booking", 
 	return $result;
 }
 
-function crm_delete_booking_button($class_id, $book_date){
+function crm_delete_booking_button($class_id, $book_date, $item_id = NULL){
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
 	<input type="hidden" name="class_id" value="<?php echo $class_id; ?>">
 	<input type="hidden" name="book_date" value="<?php echo $book_date; ?>">
+	<?php if($item_id != NULL){ ?>
+		<input type="hidden" name="item_id" value="<?php echo $item_id; ?>"><?php
+	}?>
 	<input type="hidden" name="action" value="crm_delete_booking">
 	<br/><input type="submit" value="Delete Booking">
 	</form><?php
@@ -285,7 +287,7 @@ function crm_delete_booking_action($book_date = NULL, $class_id = NULL, $item_id
 	//Delete Availability
 	crm_reset_availability($book_date);
 	//Delete Item Meta
-	if($item_id != NULL){wc_delete_order_item_meta( $item_id, "_book_date" );}
+	if($item_id != NULL){wc_delete_order_item_meta( $item_id, "_book_date", $book_date);}
 	//Delete from Class List table
 	$table = $wpdb->prefix."crm_class_list";
 	$where = array("list_id" => $class_id,);
@@ -338,39 +340,8 @@ function crm_check_booking_availability($product_id = NULL, $start = NULL){//$en
 
 
 
-function crm_match_booking_orders($session_date){
-	$matched_orders = array();
-	$session_date = date('Y-m-d H:i', strtotime($session_date));
-	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC') );
-	$orders = $query->get_orders();//get all orders
-	foreach ( $orders as $order ) {
-		$order_id = $order->get_id();
-		$items = $order->get_items();
-		foreach ( $items as $item_id => $item_data ) {
-			if($item_data['book_date'] && $item_data['book_date'] == $session_date){
-				$matched_orders[] = $order;
-			}
-		}
-	}
-	if(count($matched_orders) <= 0){$matched_orders = false;}
-	return $matched_orders;
-}
 
-function crm_return_orders_by_meta($key, $value){
-	$matched_orders = array();
-	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC') );
-	$orders = $query->get_orders();//get all orders
-	foreach ( $orders as $order ) {
-		$items = $order->get_items();
-		foreach ( $items as $item) {
-			$metadata = $item->get_meta($key, true);
-			if($metadata && $metadata == $value){// 
-				$matched_orders[] = $order;
-			}
-		}
-	}
-	return $matched_orders;
-}
+
 
 function crm_display_booking_info($booking_id){
 	$booking = new Akimbo_Crm_Booking($booking_id);
@@ -378,21 +349,20 @@ function crm_display_booking_info($booking_id){
 	 * Match Order
 	 */
 	$matched_orders = $booking->match_order();
+	$order = $booking->get_booking_order();
 	if($matched_orders == false){
-		echo "No associated order!";
+		echo "No matched order! ";
 	}else{
 		if(count($matched_orders) >= 2){
-			echo "<h2>Error, ".count($booking->match_order())." matched orders!!!</h2>";
+			echo "<h2>Error, ".count($booking->match_order())." matched orders!</h2>";
 			foreach($matched_orders as $matched_order){
 				echo crm_admin_order_link($matched_order->get_id(), "Order ID: ".$matched_order->get_id())."<br/>";
 			}
-		}elseif(count($matched_orders) == 1){
-			$order = $matched_orders[0];
+		}else{
 			echo "Order ID: ";
 			echo crm_admin_order_link($order->get_id(), $order->get_id());
 		}
 	}
-	
 
 	/**
 	 * Display booking info
@@ -402,8 +372,9 @@ function crm_display_booking_info($booking_id){
 	echo $booking_info->class_title." ".date("g:ia, l jS M", strtotime($booking_info->session_date));
 	echo "</h2></th></tr><tr><td align='center'>";
 	crm_update_trainer_dropdown("class", $booking_id, unserialize($booking_info->trainers));
-	echo "</td></tr><tr><td>";
-	if(isset($order)){
+	echo "</td></tr>";
+	if($order){
+		echo "<tr><td>";
 		$user_id = get_post_meta($order->get_id(), '_customer_user', true);
 		echo "<h4>Customer: ";
 		echo ($user_id >= 1) ? crm_user_name_from_id($user_id) : "Not set";
@@ -415,11 +386,11 @@ function crm_display_booking_info($booking_id){
 		/**
 		 * Show add ons
 		 */
-		echo "</td></tr>"; 
-		//if is_bookable, calculate date from duration. Choose order or create new
+		echo "</td></tr><tr><th>Add Ons</th></tr><tr><td>"; 
+		echo "<i>To associate additional products with this order, simply add meta '_parent_order' with the value ".$order->get_id()." to any new orders</i>";
 		$add_ons = crm_return_orders_by_meta("_parent_order", $order->get_id());
 		if($add_ons){
-			echo "<tr><th>Add Ons</th></tr><tr><td>";
+			echo "</td></tr><tr><td>"; 
 			foreach($add_ons as $added_order){
 				echo crm_admin_order_link($added_order->get_id(), "Order ".$added_order->get_id()).":<br/>";
 				$items = $added_order->get_items();
@@ -427,25 +398,20 @@ function crm_display_booking_info($booking_id){
 					echo $item_data['name']."<br/>";
 				}
 			}
-			//echo "<button>Add Studio Hire</button>";
 			echo "</td></tr>";
 		}
+		echo "</td></tr>";
 	}
 	echo "</table>";
 
-	//echo "Functions to add: <br/>Change booking date. <br/>Delete booking (late cancel). <br/>Delete booking & make slot available again";
-	//echo "<button>Edit Booking Date</button>";
-	
-	if(isset($order)){
+	if($order){
 		echo "<h4>Edit Booking</h4>";
-		//crm_update_book_date($order_id, $product_id = NULL, $book_date = NULL, $url = NULL)
-		//$this->booking_info->product_id
-		crm_update_book_date($order->get_id(), $booking_info->product_id, $booking_info->session_date, akimbo_crm_class_permalink($booking_info->list_id));
-		crm_delete_booking_button($booking_info->list_id, $booking_info->session_date);
+		crm_update_book_date($order->get_id(), $booking_info->product_id, $booking_info->session_date, akimbo_crm_class_permalink($booking_info->list_id));	
+		crm_delete_booking_button($booking_info->list_id, $booking_info->session_date, $booking_info->item_id);
+		echo "<i>Does not delete associated order</i>";
 	}else{
-		crm_simple_delete_button("crm_class_list'", "list_id", $booking_id, "/wp-admin/admin.php?page=akimbo-crm&tab=classes");
+		crm_delete_booking_button($booking_info->list_id, $booking_info->session_date);	
 	}
-	
 }
 
 /**
@@ -558,21 +524,36 @@ function akimbo_crm_manage_booking_schedules(){
 
 }
 
+function crm_get_posts_by_type($type, $format = "select", $text = NULL){//select name is product_id
+	global $wpdb;
+	$result = ($format == "select") ? NULL : array();
+	//'post_type'=>array('product', 'product_variation')
+	$posts = get_posts(array('post_type'=>'product', 'numberposts' => 100,'orderby'=> 'post_title','order' => 'ASC', ));
+	foreach($posts as $key=>$post){
+		$post_type = crm_product_meta_type($post->ID);
+		if($post_type == $type){
+			if($format == "select"){
+				$result .= "<option value='".$post->ID."'>".$post->post_title."</option>";
+			}else{
+				$result[] = $post;
+			}
+		}
+	}
+	if($format == "select"){
+		if($text != NULL){echo $text." ";}
+		echo "<select name= 'product_id'>".$result."</select>";
+	}else{
+		return $result;
+	}
+}
+
 function crm_add_booking_availability(){
 	global $wpdb;
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-	<br/>Select product: <select name= 'product_id'><?php
-		$posts = get_posts(array('post_type'=>'product', 'numberposts' => 100,'orderby'=> 'post_title','order' => 'ASC', ));
-		foreach($posts as $key=>$post){
-			$type = crm_product_meta_type($post->ID);
-	        if($type == 'booking'){
-	        	echo "<option value='".$post->ID."'>".$post->post_title."</option>";
-	        }
-		}?> </select> 
+	<?php crm_get_posts_by_type("booking", "select", "Select product:"); ?>
 	Start: <input type="time" name="start_time"><input type="date" name="start_date"> End: <input type="date" name="end_date">
 	<input type="hidden" name="action" value="crm_add_booking_availability_process">
-	<br/><input type="submit" value="Add Slot"> <!--<input type="submit" value="Save and add new">-->
-	</form><?php
+	<br/><input type="submit" value="Add Slot"></form><?php
 }
 
 function crm_add_booking_availability_process(){

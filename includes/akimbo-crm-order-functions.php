@@ -37,7 +37,7 @@ crm_update_weeks_or_sessions($item_id)//admin update form, currently on enrolmen
  * wp_list_pluck is my new favourite thing
  */
 
-function akimbo_crm_get_product_ids_by_age($age_slug){
+/*function akimbo_crm_get_product_ids_by_age($age_slug){
 	$args = array ( 
 		'post_type'  => 'product',
 		'posts_per_page'  => -1,
@@ -53,10 +53,51 @@ function akimbo_crm_get_product_ids_by_age($age_slug){
 		$products = wp_list_pluck( $query->posts, "ID");
 	}
 	return $products;
+}*/
+
+/**
+ * Replaces above function in 2.1. May have been made redundant though, previously used in Account functions
+ */
+function akimbo_crm_return_posts_by_meta($key, $value, $format = "object"){
+	$result = false;
+	$args = array ( 
+		'post_type'  => 'product',
+		'posts_per_page'  => -1,
+		'meta_query' => array( 
+			array( 
+			 'key' => $key, 
+			 'value' => $value,
+			), 
+		  ),
+		); 
+	$query = new WP_Query( $args );
+	if ( $query->have_posts() ){
+		$result = ($format == "id") ? wp_list_pluck( $query->posts, "ID") : $query->posts;	
+	}
+	return $products;
 }
 
-
-
+function crm_return_orders_by_meta($key, $value, $date = NULL){
+	$matched_orders = array();
+	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC') );
+	$orders = $query->get_orders();//get all orders
+	foreach ( $orders as $order ) {
+		$items = $order->get_items();
+		foreach ( $items as $item) {
+			if($date != NULL){
+				$metadata = date('Y-m-d H:i', strtotime($item->get_meta($key, true)));
+				$value = date('Y-m-d H:i', strtotime($value));
+			}else{
+				$metadata = $item->get_meta($key, true);
+			}
+			if($metadata && $metadata == $value){// 
+				$matched_orders[] = $order;
+			}
+		}
+	}
+	if(count($matched_orders) <= 0){$matched_orders = false;}
+	return $matched_orders;
+}
 
 add_filter( 'manage_edit-shop_order_columns', 'akimbo_crm_add_order_items_column_header', 20 );//add items column header
 add_action( 'manage_shop_order_posts_custom_column', 'akimbo_crm_add_order_items_column_content' );//Add items column to order posts page
@@ -96,10 +137,9 @@ echo "<p>Your cart is currently empty! Visit our <a href='".$shop_url."'>online 
 *
 
 crm_admin_order_link($order_id, $text = NULL)//link to admin order page from order_id. $text sets display or plain url
-function crm_admin_order_link_from_item_id($item_id, $text = NULL)//link to admin order page from item_id. $text sets display or plain url
+
 crm_get_or_set_expiry($order, $item_id)//gets expiry date, or sets default 1 year expiry if not set
 crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = "weeks") //return count from attendance table for given item id
-crm_get_order_available_passes($order, $product_ids = NULL) //return array of item info for a given order, with $item_info['available'] set to true/false. For single item only. Product ID check not currently working. This is the main check, used in user class. Check qty calculates correctly
 get_all_orders_items_from_a_product_variation( $variation_id ){// returns array of order items ids
 get_all_orders_from_a_product_id( $product_id, $ids = NULL ){//return $ids (if true) or array of results
 crm_product_get_age_slug($product_id){//based on product category, Private lessons, Adult Classes, Kids Classes or Playgroup
@@ -120,27 +160,38 @@ function crm_admin_order_link($order_id, $text = NULL, $return = false){
 	}	
 }
 
-function crm_admin_order_link_from_item_id($item_id, $text = NULL){
-	$order_id = crm_order_id_from_item_id($item_id);
-	$url = get_site_url()."/wp-admin/post.php?post=".$order_id."&action=edit";
-	if($text != NULL){
-		echo "<a href='".$url."'>".$text."</a>";
-	}else{
-		return $url;
-	}	
+function crm_order_info_from_item_id($item_id, $format = "object", $text = NULL){
+	global $wpdb;
+	$order_id = $wpdb->get_var("SELECT order_id FROM {$wpdb->prefix}woocommerce_order_items WHERE order_item_id = $item_id");
+	$result = false;
+	if(( $order_id >= 1)){
+		if($format == "object"){
+			$result = wc_get_order( $order_id );
+		}elseif($format == "url"){
+			if($text != NULL){
+				echo crm_admin_order_link($order_id, $text, false);
+			}else{
+				$result = crm_admin_order_link($order_id);
+			}	
+		}else{
+			$result = $order_id;
+		}
+	}
+	return $result;
+}
+
+//Replaced by above function
+/*function crm_admin_order_link_from_item_id($item_id, $text = NULL){
+	crm_order_info_from_item_id($item_id, "url", $text);
 }
 
 function crm_order_id_from_item_id($item_id){
-	global $wpdb;
-	$order_id = $wpdb->get_var("SELECT order_id FROM {$wpdb->prefix}woocommerce_order_items WHERE order_item_id = $item_id");
-	return $order_id;
+	crm_order_info_from_item_id($item_id, $format = "id");
 }
 
 function crm_order_object_from_item_id($item_id){
-	$order_id = crm_order_id_from_item_id($item_id);
-	$order = ( $order_id >= 1) ? wc_get_order( $order_id ) : false;
-	return $order;
-}
+	crm_order_info_from_item_id($item_id, $format = "object");
+}*/
 
 function crm_get_or_set_expiry($order, $item_id){
 	$exp_date = wc_get_order_item_meta( $item_id, 'expiry_date', true);
@@ -157,16 +208,6 @@ function crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = "week
 	global $wpdb;
 	$passes = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = '$item_id'");
 	return $passes;
-}
-
-function crm_get_order_available_passes($order, $product_ids = NULL){
-	global $wpdb;
-	$items = $order->get_items();
-	foreach($items as $item){
-		$item_info = crm_get_item_available_passes($item->get_id());
-	}
-	
-	return $item_info;
 }
 
 
@@ -396,7 +437,7 @@ function cak_crm_admin_order_items_headers($order){
 function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
   	global $wpdb;
   	echo "<td class='sessions'>";
-  	$order = crm_order_id_from_item_id($item_id);
+  	$order = crm_order_info_from_item_id($item_id, "id");
 	if (!$order) {//refund, avoid error message
 	}else{
 		$product_id = $item['product_id'];
@@ -462,7 +503,7 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 						);
 						$book_date = wc_get_order_item_meta($item_id, "_book_date");
 						if($book_date){
-							echo date("ga D jS M", strtotime($book_date)).". ";
+							echo date("g:ia D jS M", strtotime($book_date)).". ";
 							$text= "Reset";
 							$args["book_date"] = date("Y-m-d-H:i", strtotime($book_date));
 						}else{
@@ -508,7 +549,7 @@ function crm_update_order_meta (){
 		$result = wc_update_order_item_meta($item_id, $meta_key, $meta_data);
 	}
 	if($result){
-		$url = (isset($_POST['url'])) ? get_site_url().$_POST['url'] : crm_admin_order_link_from_item_id($item_id);
+		$url = (isset($_POST['url'])) ? get_site_url().$_POST['url'] : crm_order_info_from_item_id($item_id, $format = "url");
 		wp_redirect( $url ); 
 		exit;
 	}
@@ -579,3 +620,17 @@ function enrolment_issues_weeks_used_update(){
 	wp_redirect( $url ); 
 	exit;	
 }
+
+/*
+* Archived 19/08/2020
+*/
+
+/*function crm_get_order_available_passes($order, $product_ids = NULL){
+	global $wpdb;
+	$items = $order->get_items();
+	foreach($items as $item){
+		$item_info = crm_get_item_available_passes($item->get_id());
+	}
+	
+	return $item_info;
+}*/

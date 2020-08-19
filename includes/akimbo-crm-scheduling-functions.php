@@ -10,6 +10,7 @@ add_action( 'admin_post_crm_add_new_semester', 'crm_add_new_semester' );
 *
 */
 function akimbo_crm_manage_schedules(){
+	global $wpdb;
 	$capability = 'manage_options';
 	if (current_user_can($capability)){
 		if(isset($_GET['message'])){
@@ -30,39 +31,27 @@ function akimbo_crm_manage_schedules(){
 		echo "<br/><hr><h2>Add New Class Schedule</h2>";
 		crm_add_new_class_schedule();
 		echo "<br/><hr><h2>Confirm Enrolments</h2>";
-		$args = array ( 
-			'post_type'  => 'product',
-			'posts_per_page'  => -1,
-			'meta_query' => array( 
-				 array('key' => 'is_bookable', 'value' => 'on',), 
-			), 
-		); 
-		$products = new WP_Query($args);
-		$posts = $products->posts;
-		global $wpdb;
-		$today = current_time('Y-m-d');
+		$posts = crm_get_posts_by_type("enrolment", "return", NULL);
 		foreach($posts as $product){
-			$is_casual = get_post_meta($product->ID, 'is_casual', true );
-			if($is_casual){}else{
-				$args = array(
-				    'post_type'     => 'product_variation',
-				    'post_status'   => array( 'private', 'publish' ),
-				    'numberposts'   => -1,
-				    'orderby'       => 'menu_order',
-				    'order'         => 'asc',
-				    'post_parent'   => $product->ID // get parent post-ID
-				);
-				$variations = get_posts( $args );
-				if($variations != NULL){//add these details in separate function
-					foreach($variations as $variation){
-						$title = $variation->post_title.", ".$variation->post_excerpt;//use excerpt to get Class Time
-						crm_confirm_class_schedule($variation->ID, $title, $product->ID);
-					}
-				}else{
-					crm_confirm_class_schedule($product->ID, $product->post_title);
-				}	
-			}
+			$args = array(
+				'post_type'     => 'product_variation',
+				'post_status'   => array( 'private', 'publish' ),
+				'numberposts'   => -1,
+				'orderby'       => 'menu_order',
+				'order'         => 'asc',
+				'post_parent'   => $product->ID // get parent post-ID
+			);
+			$variations = get_posts( $args );
+			if($variations != NULL){//add these details in separate function
+				foreach($variations as $variation){
+					$title = $variation->post_title.", ".$variation->post_excerpt;//use excerpt to get Class Time
+					crm_confirm_class_schedule($variation->ID, $title, $product->ID);
+				}
+			}else{
+				crm_confirm_class_schedule($product->ID, $product->post_title);
+			}	
 		}
+		
 		
 		
 		//https://stackoverflow.com/questions/47518280/create-programmatically-a-woocommerce-product-variation-with-new-attribute-value <-- add new variation		
@@ -467,13 +456,8 @@ function add_new_class_name(){//haven't tested this or built the function to ins
 	<?php
 }
 
-//Not currently in use
 function crm_calculate_pro_rata_price(){
-	//echo "Select product, select weeks. Return price + GST";
-	//information to receive through AJAX
-	$new_weeks = 9;
-	//end information to receive through AJAX
-	
+	$new_weeks = 9;	
 	$product_price = 180;
 	$weeks = 10;
 	$new_total = ($product_price/$weeks) * $new_weeks;
@@ -485,35 +469,4 @@ function crm_calculate_pro_rata_price(){
 		'GST' => $new_GST,
 	);
 	return $result;
-
-
-
-	/*
-	//https://stackoverflow.com/questions/50163551/change-order-item-prices-in-woocommerce-3
-	$order_id = 809; // Static order Id (can be removed to get a dynamic order ID from $order_id variable)
-
-	$order = wc_get_order( $order_id ); // The WC_Order object instance
-
-	// Loop through Order items ("line_item" type)
-	foreach( $order->get_items() as $item_id => $item ){
-	    $new_product_price = 50; // A static replacement product price
-	    $product_quantity = (int) $item->get_quantity(); // product Quantity
-
-	    // The new line item price
-	    $new_line_item_price = $new_product_price * $product_quantity;
-
-	    // Set the new price
-	    $item->set_subtotal( $new_line_item_price ); 
-	    $item->set_total( $new_line_item_price );
-
-	    // Make new taxes calculations
-	    $item->calculate_taxes();
-
-	    $item->save(); // Save line item data
-	}
-	// Make the calculations  for the order
-	$order->calculate_totals();
-
-	$order->save(); // Save and sync the data
-	*/
 }

@@ -49,11 +49,17 @@ function crm_class_list($start = NULL, $end = NULL, $length = 10, $format = "dis
 		echo "<table><tr bgcolor = '#33ccff'><th width='55%'>Class</th><th width='20%'>Trainer/s</th><th colspan='2' width='25%'>Enrolments</th></tr>";
 		foreach ( $classes as $class_id ) {
 			$class = new Akimbo_Crm_Class($class_id);//->list_id
+			$class_type = crm_check_class_type($class_id);
 			$class_info = $class->get_class_info();
 			echo "<tr><td>".$class->get_booking_date().": ".$class_info->class_title."</td><td>";
-			echo $class->trainer_names()."</td><td>";
-			$capacity = $class->capacity();//enrolments
-			echo $capacity['count']."/".$capacity['capacity']."</td><td>".$class->class_admin_link("View Class")."</tr>";
+			echo $class->trainer_names();
+			if($class_type != "booking"){
+				$capacity = $class->capacity();
+				echo "</td><td>".$capacity['count']."/".$capacity['capacity']."</td><td>".$class->class_admin_link("View Class")."</tr>";
+			}else{
+				echo "</td><td colspan='2' align='center'>".$class->class_admin_link("View Booking")."</tr>";
+			}
+			
 		}
 		echo "</table>";
 	}elseif($format != "display"){
@@ -94,23 +100,15 @@ function akimbo_crm_manage_classes(){
 }
 
 function akimbo_crm_manage_classes_details($class_id){
-	//party test code
-	/*$variation = wc_get_product(153);
-	$variation_attributes = $variation->get_variation_attributes();
-	var_dump($variation_attributes);
-	echo $variation_attributes['attribute_pa_length'];*/
-
 	$class = new Akimbo_Crm_Class($class_id);
-	//echo "Semester: ". $class->class_semester();
+	echo "Semester: ". $class->class_semester();
 	$class_info = $class->get_class_info();
 	if(!$class_info){echo "No class found for that ID";
 	}else{
 		$class_type = $class->get_class_type();
 		$student_info = $class->get_student_info();
-		if(!$student_info){$student_info = array('student_ids' => 0, '$student_list' => 0);}//testing to see if its empty classes that aren't working
+		if(!$student_info){$student_info = array('student_ids' => 0, '$student_list' => 0);}
 		do_action( 'akimbo_crm_manage_classes_before_attendance_table', $class_id );
-		//echo apply_filters('manage_classes_attendance_table_title', "<h2>Mark Attendance</h2>");
-		//apply_filters('manage_classes_update_trainer_dropdown', crm_update_trainer_dropdown("class", $class_id, unserialize($class->get_class_info()->trainers)));
 		apply_filters('manage_classes_mark_attendance_table', display_attendance_table($class));
 		do_action('manage_classes_enrolment', akimbo_crm_admin_manual_enrolment_button($class_id, $student_info['student_ids'], $class->get_class_type(), $class_info->age_slug)); 
 		if($student_info['student_list']){//only show unenrol button if students are enrolled
@@ -137,7 +135,6 @@ function akimbo_crm_manage_classes_details($class_id){
 			echo "<h2>Emails</h2>";
 			crm_get_user_email_list($user_list);//custom functions
 		}
-
 		
 		?><form action="admin.php" method="get">
 		<input type="hidden" name="page" value="akimbo-crm2" />
@@ -190,7 +187,8 @@ function display_attendance_table($class){
 			$i++;//increment here so it gets correct number of students
 			echo "<tr><td>".$student->student_id.". ".$student->student_admin_link($student->full_name())."</td><td>";
 			if($student->ord_id >= 1){ 
-				echo "<a href='".crm_admin_order_link_from_item_id($student->ord_id)."'>".$student->ord_id."</a>";}else{echo "UNPAID";}
+				crm_order_info_from_item_id($student->ord_id, "url", $student->ord_id);
+			}else{echo "UNPAID";}
 			?></td><td><input type="checkbox" name="student_<?php echo $i?>" value="1" <?php if($student->attended >= 1){echo "checked='checked'";}?> 
 			>Student <?php echo $i."</td></tr>";
 			if($student->get_student_info()->student_notes){
@@ -331,13 +329,8 @@ function crm_delete_class_series(){
 		}else{
 			$wpdb->delete( $table, array( 'list_id' => $class_id,) );			
 		}
-	}
-	
-	if(isset($update_id)){
-		$url = akimbo_crm_class_permalink($update_id)."&message=error";
-	}else{
-		$url = akimbo_crm_permalinks("classes");
-	}
+	}	
+	$url = (isset($update_id)) ? akimbo_crm_class_permalink($update_id)."&message=error" : akimbo_crm_permalinks("classes");
 	wp_redirect( $url ); 
 	exit;	
 }

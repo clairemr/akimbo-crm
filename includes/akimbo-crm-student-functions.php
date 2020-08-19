@@ -41,6 +41,7 @@ function crm_find_duplicate_students($url = NULL){
 	//Future update: also find students where user is the same and first name is the same
 	global $wpdb;
 	echo "<h2>Duplicate Students:</h2>";
+	echo "<details>";
 	$url = ($url == NULL) ? akimbo_crm_permalinks("students") : $url;
 	$students = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_students ORDER BY user_id");
 	$distinct_students = array();
@@ -72,6 +73,7 @@ function crm_find_duplicate_students($url = NULL){
 		$user_id = $student->user_id;
 	}
 	if($duplicates == false){echo "No duplicates found";}
+	echo "</details>";
 }
 
 function crm_merge_duplicate_students_button($student1, $student2){//discard $student2
