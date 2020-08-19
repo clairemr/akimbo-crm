@@ -138,41 +138,52 @@ add_action( 'admin_post_crm_update_booking_meta_process', 'crm_update_booking_me
  //crm_available_booking_dates_dropdown($product_id): echo dropdown of all available dates
 
 
-add_action( 'admin_post_crm_update_book_date', 'crm_update_book_date' );
+
 //crm_available_booking_dates_dropdown($product_id = NULL)//select, name = session_date
 
 //crm_update_booking_trainers
 
-function crm_reset_availability(){
-	//given a book_date, set availability to 1
-}
 
-function crm_update_book_date(){
+function crm_reset_availability($book_date){
+	//given a book_date, set availability to 1
+	global $wpdb;
+	/**
+	 * Delete from availability table
+	 */
+	$table = $wpdb->prefix.'crm_availability';
+	$data = array("availability" => 1);
+	$session_date = date("Y-m-d H:i:s", strtotime($book_date));
+	$where = array("session_date" => $session_date);
+	$result = $wpdb->update( $table, $data, $where);
+	
+	return $result;
+}
+//add_action( 'admin_post_crm_update_book_date', 'crm_update_book_date' );//I think this is outdated?
+function crm_update_book_date($order_id, $product_id = NULL, $book_date = NULL, $url = NULL){//works with get or variables
 	//get product_id & order (id) & book_date
 	global $wpdb;
-	$product_id = $_GET['product_id'];
-	//$type = crm_product_meta_type($_GET['product_id']);
-	
-	
-	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-	
-	<?php 
-	if(isset($_GET['book_date'])){		
-		echo "Current booking date: ".date("g:ia, l jS M", strtotime($_GET['book_date']))."<br/>";
-		//run extra function to reset availability
-		?><input type="hidden" name="reset" value="true"><?php
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
+	if(isset($_GET['book_date']) || $book_date != NULL){	//run extra function to reset availability	
+		$book_date = (isset($_GET['book_date'])) ? $_GET['book_date'] : $book_date;
+		echo "Current booking date: ".date("g:ia, l jS M", strtotime($book_date))."<br/>";
+		echo "<input type='hidden' name='reset' value='".$book_date."'>";
+		$submit = "Change Booking Date";
+	}else{
+		$submit = "Set Booking Date";
 	}
-	
-	$name = get_post_meta($_GET['order'], '_birthday_name', true);
-	$value = "Booking: ". $name."'s party";
+	$order_id = (isset($_GET['order'])) ? $_GET['order'] : $order_id;
+	$product_id = (isset($_GET['product_id'])) ? $_GET['product_id'] : $product_id;
+	$name = get_post_meta($order_id, '_birthday_name', true);
+	$value = "Booking: ";
 	if(isset($name)){
-		echo "Booking Title: <input type='text' name='book_title' value='". $value."'>";
+		$value .= $name."'s party";
 	}
-	crm_available_booking_dates_dropdown($_GET['product_id']);//book_date
+	echo "Booking Title: <input type='text' name='book_title' value='". $value."'>";
+	crm_available_booking_dates_dropdown($product_id);//book_date
 	?>
-	<input type="hidden" name="order_id" value="<?php echo $_GET['order']; ?>">
-	<input type="hidden" name="action" value="crm_create_booking_form_action">
-	<input type="submit" value="Set Booking Date">
+	<input type="hidden" name="order_id" value="<?php echo $order_id; ?>">
+	<input type="hidden" name="action" value="add_new_booking">
+	<input type="submit" value="<?php echo $submit; ?>">
 	</form><?php
 }
 
@@ -180,16 +191,27 @@ add_action( 'admin_post_add_new_booking', 'crm_update_book_date_action' );
 
 function crm_update_book_date_action(){
 	//post order_id, book_date & book_title(optional)
-	$order = wc_get_order( $_POST['order_id']);
+	$order = wc_get_order($_POST['order_id']);
 	foreach( $order->get_items() as $item ){
 		$type = crm_product_meta_type($item->get_product_id());
 		if($type == "booking"){
 			$book_title = (isset($_POST['book_title'])) ? sanitize_text_field( $_POST['book_title'] ) : NULL;
 			$result = crm_create_booking($item, $_POST['book_date'], $book_title, $_POST['order_id']);
+			if(isset($_POST['reset'])){
+				crm_reset_availability($_POST['reset']);
+				//delete previous from class list table
+				global $wpdb;
+				$table = $wpdb->prefix."crm_class_list";
+				$where = array(
+					"session_date" => $_POST['reset'],
+					"class_id" => $_POST['order_id'],
+				);
+				$wpdb->delete( $table, $where);
+			}
 		}
 	}
 	
-	$url = (isset($_POST['url'])) ? $_POST['url'] : akimbo_crm_class_permalink();
+	$url = (isset($_POST['url'])) ? $_POST['url'] : crm_admin_order_link($_POST['order_id']);
 	$message = ($result) ? "success" : "failure";
 	$url = $url."&message=".$message;
 	wp_redirect( $url ); 
@@ -197,30 +219,42 @@ function crm_update_book_date_action(){
 }
 
 function crm_create_booking($item, $book_date, $book_title = "Private Booking", $order_id=NULL){
+	global $wpdb;
 	$result = false;
 	/**
 	 * Add meta data to item
 	 */
-	$item->add_meta_data('_book_date', $book_date);
+	//Check whether another item has that book date. If so, do not continue
+	//$item->add_meta_data('_book_date', $book_date);//not currently working on order page
+	//wc_add_order_item_meta( $item->get_id(), '_book_date', $book_date );
+	wc_update_order_item_meta( $item->get_id(), '_book_date', $book_date );
 
 	/**
 	 * Add booking to class list table
 	 */
-	global $wpdb;
+	//check if it's already been added
 	$table = $wpdb->prefix.'crm_class_list';
-	$duration = get_post_meta($item->get_product_id(), 'duration', true );
-	$duration = ($duration <= 1) ? get_post_meta($item->get_variation_id(), 'duration', true ) : 1;//Duration may be set on post or variation. Check for both and use default value of 1 so it's added to db either way
-	$prod_id = serialize(array($item->get_product_id()));//$item->get_variation_id()
-	$data = array(
-		'age_slug' => "private",
-		'location' => "Circus Akimbo - Hornsby",
-		'session_date' => $book_date,
-		'duration' => $duration,
-		'prod_id' => $prod_id,
-		'class_title' => $book_title,
-	);
-	$data['class_id'] = ($order_id != NULL) ? $order_id : 0;
-	$result = $wpdb->insert($table, $data);	
+	$added_class = $wpdb->get_var("SELECT class_id FROM {$wpdb->prefix}crm_class_list WHERE session_date = '$book_date'");
+	if(!isset($added_class)){
+		$duration = get_post_meta($item->get_product_id(), 'duration', true );
+		$duration = ($duration <= 1) ? get_post_meta($item->get_variation_id(), 'duration', true ) : 1;//Duration may be set on post or variation. Check for both and use default value of 1 so it's added to db either way
+		$prod_id = serialize(array($item->get_product_id(),$item->get_variation_id()));//$item->get_variation_id()
+		$data = array(
+			'age_slug' => "private",
+			'location' => "Circus Akimbo - Hornsby",
+			'session_date' => $book_date,
+			'duration' => $duration,
+			'prod_id' => $prod_id,
+			'class_title' => $book_title,
+		);
+		$data['class_id'] = ($order_id != NULL) ? $order_id : 0;
+		$result = $wpdb->insert($table, $data);	
+	}elseif($added_class <= 1 && $order_id != NULL){
+		$data = array('class_id' => $order_id);
+		$where = array('session_date' => $book_date);
+		$result = $wpdb->update($table, $data, $where);
+	}
+	
 
 	/**
 	 * Delete from availability table
@@ -233,6 +267,53 @@ function crm_create_booking($item, $book_date, $book_title = "Private Booking", 
 	
 	return $result;
 }
+
+function crm_delete_booking_button($class_id, $book_date){
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
+	<input type="hidden" name="class_id" value="<?php echo $class_id; ?>">
+	<input type="hidden" name="book_date" value="<?php echo $book_date; ?>">
+	<input type="hidden" name="action" value="crm_delete_booking">
+	<br/><input type="submit" value="Delete Booking">
+	</form><?php
+}
+add_action( 'admin_post_crm_delete_booking', 'crm_delete_booking_action' );
+
+function crm_delete_booking_action($book_date = NULL, $class_id = NULL, $item_id = NULL, $url = NULL){
+	global $wpdb;
+	$book_date = (isset($_POST['book_date'])) ? $_POST['book_date'] : $book_date;
+	$class_id = (isset($_POST['class_id'])) ? $_POST['class_id'] : $class_id;
+	//Delete Availability
+	crm_reset_availability($book_date);
+	//Delete Item Meta
+	if($item_id != NULL){wc_delete_order_item_meta( $item_id, "_book_date" );}
+	//Delete from Class List table
+	$table = $wpdb->prefix."crm_class_list";
+	$where = array("list_id" => $class_id,);
+	$result = $wpdb->delete( $table, $where);
+	$message = ($result) ? "success" : "failure";
+	$post_url = (isset($_POST['url'])) ? $_POST['url'] : $url;
+	$url = ($post_url != NULL) ? $post_url : akimbo_crm_permalinks("classes", "link", NULL, array('message' => $message, 'class' => $class_id));
+	wp_redirect(akimbo_crm_class_permalink()); 
+	exit;
+}
+
+add_action('wp_trash_post', 'crm_delete_booking_restore_availability');
+/**
+ * Delete booking if order moved to trash
+ */
+function crm_delete_booking_restore_availability($post_id){
+	global $wpdb;
+	$order = wc_get_order($post_id);
+	$items = $order->get_items();
+	foreach ( $items as $item_id => $item_data ) {
+		if($item_data['book_date']){
+			$url = get_site_url()."/wp-admin/edit.php?post_type=shop_order";
+			$class_id = $wpdb->get_var("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE class_id = $post_id ");
+			crm_delete_booking_action($item_data['book_date'], $class_id, $item_id, $url);
+		}
+	}
+}
+
 
 /**
  * Check availability from availability table
@@ -271,6 +352,7 @@ function crm_match_booking_orders($session_date){
 			}
 		}
 	}
+	if(count($matched_orders) <= 0){$matched_orders = false;}
 	return $matched_orders;
 }
 
@@ -286,41 +368,36 @@ function crm_return_orders_by_meta($key, $value){
 				$matched_orders[] = $order;
 			}
 		}
-		/*foreach ( $items as $item_id => $item_data ) {
-			if($item_data[$key] && $item_data[$key] == $value){// 
-				$matched_orders[] = $order;
-			}
-		}*/
 	}
 	return $matched_orders;
 }
 
 function crm_display_booking_info($booking_id){
-
-	var_dump(crm_return_orders_by_meta("_parent_order", "892"));
-
-
 	$booking = new Akimbo_Crm_Booking($booking_id);
+	/**
+	 * Match Order
+	 */
 	$matched_orders = $booking->match_order();
-	if(count($matched_orders) >= 2){
-		echo "<h2>Error, ".count($booking->match_order())." matched orders!!!</h2>";
-		foreach($matched_orders as $matched_order){
-			echo crm_admin_order_link($matched_order->get_id(), "Order ID: ".$matched_order->get_id())."<br/>";
-		}
-	}elseif(count($matched_orders) == 1){
-		$order = $matched_orders[0];
-		echo "Order ID: ";
-		echo crm_admin_order_link($order->get_id(), $order->get_id())."<br/>";
-	}else{
+	if($matched_orders == false){
 		echo "No associated order!";
+	}else{
+		if(count($matched_orders) >= 2){
+			echo "<h2>Error, ".count($booking->match_order())." matched orders!!!</h2>";
+			foreach($matched_orders as $matched_order){
+				echo crm_admin_order_link($matched_order->get_id(), "Order ID: ".$matched_order->get_id())."<br/>";
+			}
+		}elseif(count($matched_orders) == 1){
+			$order = $matched_orders[0];
+			echo "Order ID: ";
+			echo crm_admin_order_link($order->get_id(), $order->get_id());
+		}
 	}
-
-	
-	
 	
 
+	/**
+	 * Display booking info
+	 */
 	$booking_info = $booking->get_booking_info();
-	//var_dump($booking_info);
 	echo "<br/><table width='80%' style='border-collapse: collapse;'><tr bgcolor = '#33ccff'><th><h2>";
 	echo $booking_info->class_title." ".date("g:ia, l jS M", strtotime($booking_info->session_date));
 	echo "</h2></th></tr><tr><td align='center'>";
@@ -328,21 +405,47 @@ function crm_display_booking_info($booking_id){
 	echo "</td></tr><tr><td>";
 	if(isset($order)){
 		$user_id = get_post_meta($order->get_id(), '_customer_user', true);
-		$birthday_guest = get_post_meta($order->get_id(), '_birthday_name', true);
-		echo "<h4>Customer: ".crm_user_name_from_id($user_id);
+		echo "<h4>Customer: ";
+		echo ($user_id >= 1) ? crm_user_name_from_id($user_id) : "Not set";
 		echo "<br/><small>Guest of Honour: ".$booking_info->guest_of_honour."</small></h4>";
 		$items = $order->get_items();
 		foreach ( $items as $item_id => $item_data ) {
 			echo $item_data['name']."<br/>";
 		}
+		/**
+		 * Show add ons
+		 */
+		echo "</td></tr>"; 
+		//if is_bookable, calculate date from duration. Choose order or create new
+		$add_ons = crm_return_orders_by_meta("_parent_order", $order->get_id());
+		if($add_ons){
+			echo "<tr><th>Add Ons</th></tr><tr><td>";
+			foreach($add_ons as $added_order){
+				echo crm_admin_order_link($added_order->get_id(), "Order ".$added_order->get_id()).":<br/>";
+				$items = $added_order->get_items();
+				foreach ( $items as $item_id => $item_data ) {
+					echo $item_data['name']."<br/>";
+				}
+			}
+			//echo "<button>Add Studio Hire</button>";
+			echo "</td></tr>";
+		}
 	}
-	echo "</td></tr><tr><th>Add Ons</th></tr><tr><td>";
-	//if is_bookable, calculate date from duration. Choose order or create new
-	echo "<button>Add Studio Hire</button>";
-	echo "</td></tr>";
 	echo "</table>";
 
-	echo "Functions to add: <br/>Change booking date. <br/>Delete booking (late cancel). <br/>Delete booking & make slot available again";
+	//echo "Functions to add: <br/>Change booking date. <br/>Delete booking (late cancel). <br/>Delete booking & make slot available again";
+	//echo "<button>Edit Booking Date</button>";
+	
+	if(isset($order)){
+		echo "<h4>Edit Booking</h4>";
+		//crm_update_book_date($order_id, $product_id = NULL, $book_date = NULL, $url = NULL)
+		//$this->booking_info->product_id
+		crm_update_book_date($order->get_id(), $booking_info->product_id, $booking_info->session_date, akimbo_crm_class_permalink($booking_info->list_id));
+		crm_delete_booking_button($booking_info->list_id, $booking_info->session_date);
+	}else{
+		crm_simple_delete_button("crm_class_list'", "list_id", $booking_id, "/wp-admin/admin.php?page=akimbo-crm&tab=classes");
+	}
+	
 }
 
 /**
