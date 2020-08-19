@@ -90,7 +90,7 @@ function akimbo_crm_manage_classes(){
 	}
 
 	echo "<br/><hr><br/>";
-	apply_filters('akimbo_crm_manage_classes_date_selector', crm_date_selector("akimbo-crm2", "classes"));
+	apply_filters('akimbo_crm_manage_classes_date_selector', crm_date_selector("akimbo-crm", "classes"));
 }
 
 function akimbo_crm_manage_classes_details($class_id){
