@@ -123,6 +123,8 @@ function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args
 	}
 	if($format == "link"){
 		return $url;
+	}elseif($format == "array"){//use to update date selector
+		return array($page, $tab);
 	}else{
 		$display = ($format == "button") ? "<button>".$text."</button>" : $text;
 		$result = "<a href='".$url."'>".$display."</a>";
@@ -199,7 +201,7 @@ function akimbo_crm_enrolment_issues(){
 	global $wpdb;
 	if(isset($_GET['product_id'])){//used for adding book_date
 		echo "<h2>Set Booking Date</h2>";
-		crm_update_book_date();
+		crm_update_book_date($_GET['order']);
 	}elseif(isset($_GET['item_id'])){
 		echo "<h2>Fix enrolment issues</h2>";
 		crm_update_weeks_or_sessions($_GET['item_id']);
