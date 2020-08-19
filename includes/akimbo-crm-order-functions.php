@@ -334,9 +334,10 @@ function crm_product_meta_type($product_id){
 function crm_check_class_type($class_id){
 	global $wpdb;
 	$class_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE list_id = '$class_id'");
-	$products = unserialize($class_info->prod_id);
-	$result = crm_product_meta_type($products[0]);
-	return $result;
+	if($class_info){
+		$products = unserialize($class_info->prod_id);
+		return crm_product_meta_type($products[0]);
+	}
 }
 
 
@@ -455,14 +456,18 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 			        }		
 			        break;
 					case "booking":
-						$book_date = date("ga D jS M", strtotime(wc_get_order_item_meta($item_id, "_book_date")));
-						echo $book_date.". ";
-						$text = ($book_date) ? "Reset" : "Set Date";
 						$args = array(
 							"order" => $item['order_id'],
 							"product_id" => $item->get_product_id(),
-							"book_date" => date("Y-m-d-H:i", strtotime($book_date)),
-						);	
+						);
+						$book_date = wc_get_order_item_meta($item_id, "_book_date");
+						if($book_date){
+							echo date("ga D jS M", strtotime($book_date)).". ";
+							$text= "Reset";
+							$args["book_date"] = date("Y-m-d-H:i", strtotime($book_date));
+						}else{
+							$text = "Set Date";
+						}	
 				    	akimbo_crm_permalinks("troubleshooting", "display", $text, $args);
 			        break;
 			    default:
