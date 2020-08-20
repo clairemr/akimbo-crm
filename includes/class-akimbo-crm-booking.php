@@ -79,5 +79,4 @@ class Akimbo_Crm_Booking{
 		$order = $this->order;
 		$order->get_user();
 	}
-
 }
