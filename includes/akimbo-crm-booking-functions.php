@@ -394,7 +394,7 @@ function akimbo_crm_manage_booking_schedules(){
 	if (current_user_can('manage_woocommerce')){//only admin can view & edit availabilities
 		echo "<table border='1' width='95%'><tr><td colspan='7' align='center'>";
 		echo apply_filters('akimbo_crm_manage_availabilities_header', crm_date_selector_header("bookings", $date));
-		apply_filters('akimbo_crm_manage_availabilities_before_calendar', crm_date_selector("akimbo-crm2", "calendar"));
+		apply_filters('akimbo_crm_manage_availabilities_before_calendar', crm_date_selector_permalinks("bookings"));
 		echo "</td></tr><tr>";
 		$days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 		for($x = 1; $x <= 7; $x++){

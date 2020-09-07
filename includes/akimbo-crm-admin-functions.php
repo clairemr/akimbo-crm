@@ -66,12 +66,12 @@ function akimbo_crm_manage_classes(){
 		
 	} else{
 		$date = (isset($_GET['date'])) ? $_GET['date'] : current_time('Y-m-d');
-		echo crm_date_selector_header("classes", $date, "week");
+		echo "<h2>".crm_date_selector_header("classes", $date, "week")."</h2>";
 		$crm_date = crm_date_setter_week($date);
 		crm_class_list($crm_date['week_start'], $crm_date['week_end']);
 	}
 	echo "<br/><hr><br/>";
-	apply_filters('akimbo_crm_manage_classes_date_selector', crm_date_selector("akimbo-crm", "classes"));
+	apply_filters('akimbo_crm_manage_classes_date_selector', crm_date_selector_permalinks("classes"));
 }
 
 /**
@@ -216,7 +216,7 @@ function akimbo_crm_party_data(){
 	echo crm_date_selector_header("statistics", $date, "semester");
 	echo "</th></tr><tr align='center'><td>";
 	echo "<h4>".date("D jS M, Y", strtotime($current_semester['start']))." - ".date("D jS M, Y", strtotime($current_semester['end']))."</h4>";
-	crm_date_selector("akimbo-crm3", "statistics");
+	crm_date_selector_permalinks("statistics");
 	echo "</td></tr></th></tr></table><hr>";
 	echo "<br/>Total students: ".$wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}crm_students" );
 	echo "<br/>Total users: ".$wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->users" )."<br/><hr>";
@@ -329,9 +329,7 @@ function akimbo_crm_party_data(){
 	$week_end = date("Y-m-d-h:ia", strtotime($crm_date['week_end']));
 	echo "<h2>Week Starting:  <small>".date("D jS M, Y", strtotime($week_start))."</small></h2>";
 	
-	
-	crm_date_selector("akimbo-crm3", "business");
-	
+	crm_date_selector_permalinks("business");	
 	
 	echo "<table width='80%''><tr><th>Classes</th><th>Trainers</th><th>Students</th><th>In</th><th>Out</th><th>Total</th></tr>";
 	$classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$week_start' AND session_date <= '$week_end' ORDER BY session_date ASC");

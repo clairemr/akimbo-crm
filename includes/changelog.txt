@@ -10,8 +10,12 @@ $url .= "&message=".$message;
 wp_redirect( $url ); 
 exit;
 
-find all <tr bgcolor = '#33ccff'> and replace with th for consistent styling
+find all <tr bgcolor = '#33ccff'> and replace with th for consistent styling. Add option to settings page
 
+Final Testing
+ - enrolments
+  - parties
+  Do something with business details soon
 
 Updates
  - Change all urls to akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args = NULL)
@@ -43,3 +47,6 @@ Add custom fields to booking product page
 
 Hide quantity button for private bookings
  * https://www.cloudways.com/blog/hide-product-quantity-field-from-woocommerce-product-pages/
+
+ Premium plugin sections
+ * https://www.quora.com/How-do-premium-WordPress-plugins-validate-a-user-licence-from-their-end

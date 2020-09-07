@@ -21,7 +21,7 @@ function akimbo_crm_activate_check_woocommerce() {
 	if ( current_user_can( 'activate_plugins' ) && ! class_exists( 'WooCommerce' ) ) {
 	  deactivate_plugins( plugin_basename( __FILE__ ) );// Deactivate the plugin.
 	  // Throw an error in the WordPress admin console.
-	  $error_message = '<p style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Oxygen-Sans,Ubuntu,Cantarell,\'Helvetica Neue\',sans-serif;font-size: 13px;line-height: 1.5;color:#444;">' . esc_html__( 'This plugin requires ', 'akimbo-crm' ) . '<a href="' . esc_url( 'https://wordpress.org/plugins/akimbo-crm/' ) . '">WooCommerce</a>' . esc_html__( ' plugin to be active.', 'akimbo-crm' ) . '</p>';
+	  $error_message = '<p>' . esc_html__( 'This plugin requires ', 'akimbo-crm' ) . '<a href="' . esc_url( 'https://wordpress.org/plugins/akimbo-crm/' ) . '">WooCommerce</a>' . esc_html__( ' plugin to be active.', 'akimbo-crm' ) . '</p>';
 	  die( $error_message ); 
 	}
   }
@@ -29,7 +29,6 @@ register_activation_hook( __FILE__, 'akimbo_crm_activate_check_woocommerce' );
 register_activation_hook( __FILE__, 'akimbo_crm_create_db_tables' );
 global $akimbo_crm_db_version;
 $akimbo_crm_db_version = '2.1';
-//https://www.quora.com/How-do-premium-WordPress-plugins-validate-a-user-licence-from-their-end
 
 function akimbo_crm_create_db_tables(){
 	/*
@@ -188,7 +187,7 @@ class AkimboCRM {
 		if (current_user_can('upload_files')){
 			$parent_slug = "akimbo-crm";
 			add_menu_page( 'Akimbo CRM', 'Akimbo CRM', 'upload_files', $parent_slug, array(&$this, 'akimbo_crm_init' ), 'dashicons-book-alt', '2');
-			add_submenu_page( $parent_slug, 'Scheduling', 'Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
+			add_submenu_page( $parent_slug, 'Scheduling', 'Class Scheduling', 'upload_files', 'akimbo-crm2', array(&$this, 'manage_classes' ), 1);
 			add_submenu_page( $parent_slug, 'Business Admin', 'Business', 'manage_options', 'akimbo-crm3', array(&$this, 'manage_orders' ), 3);
 			add_submenu_page( $parent_slug, 'Settings', 'Settings', 'manage_options', 'crm-options', array(&$this, 'akimbo_crm_options_page' ), 4);
 		}	
@@ -279,7 +278,6 @@ class AkimboCRM {
 				echo crm_nav_tab($page, "business", "Business Details", $active_tab);
 				echo crm_nav_tab($page, "mailchimp", "Mailchimp Integration", $active_tab);
 				echo crm_nav_tab($page, "payroll", "Payroll", $active_tab);
-				echo crm_nav_tab($page, "partydata", "Party Data", $active_tab);
 			echo "</h2>";
 			if(isset($_GET['message'])){
 				$message = ($_GET['message'] == "success") ? "<div class='updated notice is-dismissible'><p>Updates successful!</p></div>" : "<div class='error notice is-dismissible'><p>Update failed, please try again</p></div>";
@@ -293,8 +291,7 @@ class AkimboCRM {
 				case "mailchimp": apply_filters('akimbo_crm3_business details_mailchimp', akimbo_crm_manage_mailchimp_integration($page, $active_tab)); 	
 				break;
 			    case "payroll": apply_filters('akimbo_crm3_business details_payroll', akimbo_crm_manage_payroll()); 	
-				break;
-				case "partydata": include 'includes/includes/party_data.php'; 
+				break; 
 				default:
 				
 			}
@@ -383,8 +380,6 @@ class AkimboCRM {
 	}
 
 	public function includes() {
-
-
 		/**
 		 * Core classes.
 		 */
@@ -398,13 +393,10 @@ class AkimboCRM {
 		include_once 'includes/class-akimbo-crm-user.php';
 		
 		/* 
-		*
 		* Functions
-		*
 		*/
 		include_once 'includes/akimbo-crm-account-functions.php';
 		include_once 'includes/akimbo-crm-admin-functions.php';
-		include_once 'includes/akimbo-crm-badge-functions.php';
 		include_once 'includes/akimbo-crm-booking-functions.php';
 		include_once 'includes/akimbo-crm-class-functions.php';
 		include_once 'includes/akimbo-crm-custom-functions.php';
@@ -413,17 +405,8 @@ class AkimboCRM {
 		include_once 'includes/akimbo-crm-scheduling-functions.php';
 		include_once 'includes/akimbo-crm-staff-functions.php';
 		include_once 'includes/akimbo-crm-student-functions.php';
-		include_once 'includes/akimbo-crm-user-functions.php';
-		
-
-		//include_once WC_ABSPATH . 'includes/class-wc-datetime.php';
-		
+		include_once 'includes/akimbo-crm-user-functions.php';		
 	}	
 }
 
 $akimboCRM = new AkimboCRM;
-
- 
-
-
-

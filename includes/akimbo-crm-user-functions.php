@@ -90,7 +90,16 @@ function akimbo_user_dropdown($name, $current = NULL){
 
 
 
-
+function crm_get_user_email_list($user_list){//user emails from user ids
+	foreach($user_list as $user){
+		//$user = $student_edit->user_id;
+		$user_info = get_userdata($user);
+		//echo "<br/>Name: ". $user_info->first_name." ".$user_info->last_name;
+		//echo '<br/>User roles: ' . implode(', ', $user_info->roles) . "\n";
+		//echo '<br/>User ID: ' . $user_info->ID . "\n";
+		echo $user_info->user_email.", ";
+	}
+}
 
 
 

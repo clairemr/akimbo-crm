@@ -135,7 +135,7 @@ function akimbo_crm_update_trainer_availabilities($user_id = NULL){
 	$crm_date = crm_date_setter_month($date);
 	$header = crm_date_selector_header("staff", $date, $period = "month");
 	echo apply_filters('akimbo_crm_manage_availabilities_header', $header);
-	crm_date_selector("akimbo-crm", 'availabilities');
+	crm_date_selector_permalinks("staff");
 	$start = $crm_date['start'];
 	$end = $crm_date['end'];
 
@@ -233,7 +233,7 @@ function akimbo_crm_manage_payroll(){
 	echo "<h4>Payslip period: ".date("l jS M", strtotime($crm_date['last_week_start']))." - ".date("l jS M", strtotime($crm_date['last_week_end']));
 	$pay_day = strtolower(get_option("akimbo_crm_pay_day"))." this week";
 	echo "<br/>Payment date: ".date("l jS M", strtotime($pay_day, strtotime($date)))."</h4>";
-	crm_date_selector("akimbo-crm3", "payroll");
+	crm_date_selector_permalinks("payroll");
 	$payroll = new Akimbo_Crm_Payroll($crm_date['last_week_start'], $crm_date['last_week_end']);
 	$payroll->display_items();
 	echo "<br/><hr>";

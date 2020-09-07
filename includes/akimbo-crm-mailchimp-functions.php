@@ -130,6 +130,8 @@ function akimbo_crm_mailchimp_subscribe_new_user($user_id){
 	$response = curl_exec($ch);
 }
 
+add_action( 'admin_post_update_mailchimp_child', 'akimbo_crm_update_mailchimp_child' );
+
 function akimbo_crm_update_mailchimp_child(){//$users = array($email => $value,)
 	$users = unserialize(base64_decode($_POST['users']));//use base64 decode, https://davidwalsh.name/php-serialize-unserialize-issues
 	foreach($users as $email => $value){
