@@ -384,10 +384,6 @@ function crm_check_booking_availability($product_id = NULL, $start = NULL){//$en
  * Manage availability calendar. Update to remove individual booking details once class function has been updated
  */
 function akimbo_crm_manage_booking_schedules(){
-	if(isset($_GET['message'])){
-		$message = ($_GET['message'] == "success") ? "<div class='updated notice is-dismissible'><p>Updates successful!</p></div>" : "<div class='error notice is-dismissible'><p>Update failed, please try again</p></div>";
-		echo apply_filters('manage_booking_details_update_notice', $message);
-	}
 	/**
 	 * Availability Calendar
 	 */

@@ -15,7 +15,6 @@ add_action( 'wp_logout', 'akimbo_crm_logout_redirect');
 add_filter( 'woocommerce_account_menu_items', 'akimbo_crm_account_menu_items', 10, 1 );
 add_action( 'init', 'akimbo_crm_add_my_account_endpoint' );
 add_action( 'woocommerce_account_students_endpoint', 'akimbo_crm_students_endpoint_content' );
-add_action( 'woocommerce_account_badges_endpoint', 'akimbo_crm_badges_endpoint_content' );
 add_action('woocommerce_account_dashboard', 'akimbo_crm_account_dashboard');
 add_shortcode('simpleTimetable', 'user_timetable_simple'); //[simpleTimetable age='adults']
 add_shortcode('trialTimetable', 'user_timetable_trial'); //[trialTimetable age='adults']
@@ -35,29 +34,26 @@ function akimbo_crm_login_redirect( $redirect_to, $request, $user  ) {
  * Redirect to home page after logging out
  */
 function akimbo_crm_logout_redirect(){
-	$site = get_site_url();
-	wp_redirect( $site );
+	wp_redirect(get_site_url());
 	exit();
 }
 
 /*
-* Add students & badges as menu items
+* Add students as menu item
 */
 function akimbo_crm_account_menu_items( $items ) {
 	unset( $items[ 'customer-logout' ] );
     $items['students'] = __( 'Students', 'crm' );
-	$items['badges'] = __( 'Badges', 'crm' );
 	$items['customer-logout'] = __( 'Logout', 'woocommerce' );
  
     return $items;
 }
  
 /*
-* Add students & badges endpoints
+* Add student endpoints
 */
 function akimbo_crm_add_my_account_endpoint() {
     add_rewrite_endpoint( 'students', EP_PAGES );
-	add_rewrite_endpoint( 'badges', EP_PAGES );
 }
 
 /*
@@ -67,29 +63,21 @@ function akimbo_crm_account_dashboard(){
 	global $wpdb;
 	$user_id = get_current_user_id();
 	$user = new Akimbo_Crm_User(get_current_user_id());
-	$student_id = (isset($_GET['student_id'])) ? $_GET['student_id'] : $user->get_user_student_id();
+	$student_id = (isset($_GET['student'])) ? $_GET['student'] : $user->get_user_student_id();
 	$student = new Akimbo_Crm_Student($student_id);
-	$age = $student->get_age();
-	$age = (isset($age)) ? $age : $age = "adult";//ternary operator, defaults to adult	
-
+	$age = $student->get_age();//defaults to adult in student class
 	echo apply_filters('akimbo_crm_above_account_dashboard_message', "<p>".get_option('akimbo_crm_account_message')."<p><hr>");
-	
-	if($student->get_student_info()->student_waiver <= 0){echo "<p><b>Please <a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."/students/?student_id=".$student_id."'>update your student details</a> before attending your next class</b></p><hr>";}
-	
+	if($student->get_student_info()->student_waiver <= 0){
+		echo "<p><b>Please ";
+		akimbo_crm_student_permalink($student_id, "update your student details", false); 
+		echo " before attending your next class</b></p><hr>";
+	}
 	echo "<h2>Upcoming ".ucwords($age)." Classes</h2>";
 	echo "<i>Student: ".$student->first_name()."</i><br/>";
-	$user->display_user_orders_account($age);
-	/**
-	 * This function may now be redundant
-	 * akimbo_crm_get_product_ids_by_age($age);
-	 */
-	/*$products = akimbo_crm_get_product_ids_by_age($age);
-	var_dump($products);*/
-	/*$product_id = reset( $products );//get first product
-	$trial_product = get_post_meta($product_id, 'trial_product', true );
-	var_dump($trial_product);*/
-	crm_bookable_timetable($age, 4, $user, $student);
-	crm_bookable_timetable($age, 4, $user, $student, true);//trial version
+	crm_dropdown_selector("students", "account", NULL, $user_id);
+	echo "<br/>";
+	akimbo_crm_display_user_order_account($user, $age);
+	crm_bookable_timetable($age, 14, $user, $student);
 }
 
 /*
@@ -102,7 +90,7 @@ function crm_bookable_timetable($age = NULL, $limit = 14, $user = NULL, $student
 	$order = ($user != NULL) ? $user->get_available_user_orders($age, true) : NULL;
 	$enrolled = false;
 	
-	if($age == NULL){
+	if($age == NULL || $age == "all"){
 		$class_list_ids = $wpdb->get_results("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' ORDER BY session_date ASC LIMIT $limit");
 	}else{
 		$class_list_ids = $wpdb->get_results("SELECT list_id FROM {$wpdb->prefix}crm_class_list WHERE session_date >= '$today' AND age_slug = '$age' ORDER BY session_date ASC LIMIT $limit");
@@ -291,7 +279,8 @@ function akimbo_crm_raf_referral_code($atts){//$page = null
 		$classes = $user->class_count();
 		if($classes >= 2){echo "<br/><br/><p style='text-align:center'>You have booked ".$classes." classes at Circus Akimbo. Thanks for choosing us to play a part in your circus journey!</p>";}
 	} 
-	echo "<hr><p style='text-align:center'><a href='".get_site_url()."/account/students/?student_id=new'><button>Add a new student</button></a></p>";
+	echo "<hr><p style='text-align:center'><a href='".akimbo_crm_student_permalink("new", NULL, false);
+	echo "'><button>Add a new student</button></a></p>";
 }
 
 /********************************************************************************************************************************

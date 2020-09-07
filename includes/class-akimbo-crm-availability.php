@@ -30,12 +30,14 @@ class Akimbo_Crm_Availability{
 	function __construct($id){
 		$this->id = $id;
 		global $wpdb;
-		$info = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_availability LEFT JOIN {$wpdb->prefix}crm_booking_meta ON {$wpdb->prefix}crm_availability.avail_id = {$wpdb->prefix}crm_booking_meta.avail_id WHERE {$wpdb->prefix}crm_availability.avail_id = $id");
-		$this->info = $info;
+		$info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_availability WHERE {$wpdb->prefix}crm_availability.avail_id = $id");
+		$this->booking_date = $info->session_date;
+		$this->products = $info->prod_id;
+		$this->availabilities = $info->availabilities;
+		/*$this->info = $info;//no longer using booking meta
 		foreach($info as $detail){
-			$this->details[$detail->meta_key] = $detail->meta_value;
-			$this->booking_date = $detail->session_date;
-			$this->products = $detail->prod_id;
+			//$this->details[$detail->meta_key] = $detail->meta_value;
+			
 		}
 		if(!isset($this->details['availabilities'])){
 			$table = $wpdb->prefix.'crm_booking_meta';
@@ -48,7 +50,7 @@ class Akimbo_Crm_Availability{
 			$this->availabilities = serialize(array(0));
 		}else{
 			$this->availabilities = $this->details['availabilities'];
-		}
+		}*/
 		
 	}
 	

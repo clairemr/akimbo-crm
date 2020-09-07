@@ -1,6 +1,25 @@
 <?php
 /**
- * Display function
+ * Mailchimp integration on student details page
+ */
+function akimbo_crm_student_details_mailchimp_integration($student){
+	echo "<h2>Mailchimp integration: ";
+	$mailchimp = $student->update_mailchimp();//updates mailchimp and returns values
+	if($mailchimp['subscribed'] == false){
+		echo "<small>User not subscribed</small></h2>";
+		echo "CRM start: ".date("g:ia, l jS M Y", strtotime($student->first_class()->session_date))."<br/>";
+		echo "CRM most recent: ".date("g:ia, l jS M Y", strtotime($student->last_class()->session_date))."<br/>";
+	}else{
+		echo "<small>".$mailchimp['email']."</small></h2>";
+		echo "Mailchimp start: ".date("l jS M Y", strtotime($mailchimp['MCstart']))."<br/>";
+		echo "Mailchimp most recent: ".date("l jS M Y", strtotime($mailchimp['MCend']))."<br/>";
+	}	
+}
+
+//add_action
+
+/**
+ * Display function, admin page
  */
 function akimbo_crm_manage_mailchimp_integration($page, $tab){
 	global $wpdb;
@@ -68,15 +87,17 @@ function akimbo_crm_manage_mailchimp_integration($page, $tab){
  */
 
 function akimbo_crm_mailchimp_connection($email = NULL){
-	$connection['apikey'] = "4dc5e76991af0d9ead66a1934a7261fe-us3";
+	/*$connection['apikey'] = "4dc5e76991af0d9ead66a1934a7261fe-us3";
 	if($email != NULL){$connection['userid'] = md5( strtolower( $email ) );}
 	$connection['auth'] = base64_encode( 'user:'. $connection['apikey'] );
-	
 	$connection['server'] = "us3";
 	//$listid = "4e3828afd5"; //Welcome to Circus Akimbo 
-	$connection['listid'] = "6129e84ea3"; //Live list
-	
-	//$list_id = get_option("akimbo_crm_adult_class_products");//eventually add option
+	$connection['listid'] = "6129e84ea3"; //Live list*/
+	$connection['apikey'] = get_option('akimbo_crm_mailchimp_apikey');
+	$connection['auth'] = base64_encode( 'user:'. $connection['apikey'] );
+	$connection['listid'] = get_option('akimbo_crm_mailchimp_list_id');
+	$connection['server'] = get_option('akimbo_crm_mailchimp_server');
+	if($email != NULL){$connection['userid'] = md5( strtolower( $email ) );}
 
 	return $connection;
 }

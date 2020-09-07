@@ -25,7 +25,7 @@ class Akimbo_Crm_Student{
 		$this->student_info = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}crm_students WHERE student_id = $student_id");
 		$user_id = $this->student_info->user_id;
 		$this->user_info = get_userdata($user_id);
-		$this->classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance LEFT JOIN {$wpdb->prefix}crm_class_list ON {$wpdb->prefix}crm_attendance.class_list_id = {$wpdb->prefix}crm_class_list.list_id WHERE student_id = $student_id");
+		$this->classes = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}crm_attendance LEFT JOIN {$wpdb->prefix}crm_class_list ON {$wpdb->prefix}crm_attendance.class_list_id = {$wpdb->prefix}crm_class_list.list_id WHERE student_id = $student_id ORDER BY session_date");
 		$this->age = $wpdb->get_var("SELECT age_slug FROM {$wpdb->prefix}crm_class_list LEFT JOIN {$wpdb->prefix}crm_attendance ON {$wpdb->prefix}crm_attendance.class_list_id = {$wpdb->prefix}crm_class_list.list_id WHERE student_id = '$student_id' AND age_slug != 'private' ORDER BY session_date DESC LIMIT 1");//desc = most recent, accounts for students getting older
 		/*if($student->last_class()->session_date == "current_semester"){
 			$status = "current";
@@ -56,8 +56,8 @@ class Akimbo_Crm_Student{
 	}
 
 	function get_age(){
+		$age = ($this->age != NULL) ? $this->age : "adult";
 		return $this->age;
-		//return "adults";
 	}
 
 	function get_id(){
@@ -68,35 +68,16 @@ class Akimbo_Crm_Student{
 		return $this->student_info->user_id;
 	}
 
-	function get_classes($ids = NULL){
-		return $this->classes;
-	}
-
-	function display_classes(){
-		$student_classes = $this->get_classes();
-		if(!$student_classes){echo "No classes found. Delete student?";
-			crm_simple_delete_button("crm_students", "student_id", $this->student_id, "/wp-admin/admin.php?page=akimbo-crm&tab=details");
-		}else {
-			echo "<h2>Classes Attended</h2>";
-			echo "<table><tr><th>Date</th><th>Class</th><th>Attended</th><th>Order Item</th><th>Delete</th></tr>";
+	function get_classes($format = "array"){
+		if($format == "object"){
 			foreach($this->get_classes() as $student_class){
-				echo "<tr><td>".date("g:ia, l jS M Y", strtotime($student_class->session_date))."</td><td>";
-				akimbo_crm_permalinks("classes", "text", $student_class->class_title, array('class' => $student_class->class_list_id));
-				echo "</td><td>".$student_class->attended."</td><td>";
-				if($student_class->ord_id >=1){
-					echo crm_admin_order_link_from_item_id($student_class->ord_id, $student_class->ord_id);
-				}else{
-					echo $this->update_unpaid_classes($student_class->attendance_id);
-				}
-				echo "</td><td>";
-				$redirect = "/wp-admin/admin.php?page=akimbo-crm&tab=details&student=".$this->student_id;
-				//akimbo_crm_permalinks("students", "link", NULL, array('student' => $this->student_id));
-				crm_simple_delete_button("crm_attendance", "attendance_id", $student_class->attendance_id, $redirect);
-				crm_student_unenrol_button($student_class->attendance_id, $redirect);
-				echo "</td></tr>";
+				$id = $student_class->class_list_id;
+				$classes[] = array($student_class, new Akimbo_Crm_Class($id));
 			}
-			echo "</table>";
+		}else{
+			$classes = $this->classes;
 		}
+		return $classes;
 	}
 
 	function get_upcoming_classes(){
@@ -250,6 +231,15 @@ class Akimbo_Crm_Student{
 		}
 	}
 
+	function student_list_display($admin = false){
+		if($admin == true){
+			echo $this->full_name().". ".$this->student_admin_link("View")."<br/>";
+		}else{
+			echo $this->full_name().". ".$this->student_account_link("View")."<br/>";
+		}
+		
+	}
+
 	function student_admin_link($display = NULL){//text to display or link only
 		if($display != NULL){
 			$url = "<a href='".get_site_url()."/wp-admin/admin.php?page=akimbo-crm&tab=details&student=".$this->student_id."'>".$display."</a>";
@@ -262,9 +252,9 @@ class Akimbo_Crm_Student{
 	function student_account_link($display = NULL){//text to display or link only
 		//get_permalink( get_option('woocommerce_myaccount_page_id') )."/students/?student_id=".$student->student_id
 		if($display != NULL){
-			$url = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."/students/?student_id=".$this->student_id."'>".$display."</a>";
+			$url = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."students/?student_id=".$this->student_id."'>".$display."</a>";
 		}else{
-			$url = get_permalink( get_option('woocommerce_myaccount_page_id') )."/students/?student_id=".$this->student_id;
+			$url = get_permalink( get_option('woocommerce_myaccount_page_id') )."students/?student_id=".$this->student_id;
 		}
 		return $url;
 	}
@@ -278,16 +268,4 @@ class Akimbo_Crm_Student{
 		return $url;
 	}
 
-	function update_unpaid_classes($attendance_id, $class_id = NULL, $url = NULL){
-		global $wpdb;
-		$url = ($url != NULL) ? $url : "/wp-admin/admin.php?page=akimbo-crm2&tab=payments";
-		?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-		<?php crm_select_available_user_orders($this->get_user_id());?>
-		<input type="hidden" name="att_id" value="<?php echo $attendance_id;?>">
-		<input type="hidden" name="class_id" value="<?php echo $class_id;?>">
-		<input type="hidden" name="referral_url" value="<?php echo $url;?>">
-		<input type="hidden" name="action" value="admin_assign_order_id">
-		<input type='submit' value='Update'> 
-		</form><?php
-	}
 }

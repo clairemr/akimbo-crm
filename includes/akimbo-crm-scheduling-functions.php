@@ -51,9 +51,6 @@ function akimbo_crm_manage_schedules(){
 				crm_confirm_class_schedule($product->ID, $product->post_title);
 			}	
 		}
-		
-		
-		
 		//https://stackoverflow.com/questions/47518280/create-programmatically-a-woocommerce-product-variation-with-new-attribute-value <-- add new variation		
 	}else{echo "<br/>Sorry, you don't have permission to edit schedules";}
 		crm_calculate_pro_rata_price();
@@ -106,20 +103,25 @@ function crm_confirm_class_schedule($class_id, $title = NULL, $product_id = NULL
 }
 
 /*
-* 
 * Update product: add meta data and allow scheduling
-*
 */
-add_action( 'add_meta_boxes', 'product_details_add' );  //add class details meta box
+
 //product_details_call //information in meta box
 add_action( 'save_post', 'product_details_save' );      //save meta data      
 add_action( 'woocommerce_product_after_variable_attributes', 'variation_settings_fields', 10, 3 );  // Add Variation Settings      
 add_action( 'woocommerce_save_product_variation', 'save_variation_settings_fields', 10, 2 );    // Save Variation Settings
 
+/**
+ * Add Akimbo CRM meta box to product page
+ */
 function product_details_add() {
     add_meta_box( 'class_details', 'Class Details', 'product_details_call', 'product', 'normal', 'high' );
 }
+add_action( 'add_meta_boxes', 'product_details_add' );  //add class details meta box
 
+/**
+ * Display information in product details meta box
+ */
 function product_details_call( $post ) {
 	$details = get_post_meta(get_the_ID());
 	//Enable Akimbo CRM
@@ -136,9 +138,7 @@ function product_details_call( $post ) {
 		if(isset($details['is_booking'])){echo "checked";}
 		echo " >Private booking. ";
 
-		/**
-		 * Get variation information
-		 */
+		//Get variation information
 		$product_id = get_the_ID();
 		$args = array(
 		    'post_type'     => 'product_variation',
@@ -191,18 +191,16 @@ function product_details_call( $post ) {
 				echo "<br/><i>Use the variations tab below to add booking information.</i>";
 			}else{
 				$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
-			echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
+				echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
 			}	
 		}
-		
-
-		
-		
-	
 	}
 	submit_button();
 }
 
+/**
+ * Save information submitted through product meta box
+ */
 function product_details_save($post_id){
     if (array_key_exists('is_bookable', $_POST)) {
         update_post_meta($post_id,'is_bookable', $_POST['is_bookable']);
@@ -233,6 +231,9 @@ function product_details_save($post_id){
     }
 }
 
+/**
+ * Variable products. If Akimbo CRM enabled, show meta information for each variation
+ */
 function variation_settings_fields( $loop, $variation_data, $variation ) {
 	$post_details = get_post_meta(get_the_ID());
 	/**
@@ -261,6 +262,9 @@ function variation_settings_fields( $loop, $variation_data, $variation ) {
 	}	
 }
 
+/**
+ * Save meta information submitted for individual variations
+ */
 function save_variation_settings_fields( $variation_id, $i ) {
 	if ( empty( $variation_id ) ) return;
 	$start = $_POST['start_time'][$variation_id];//have to use this, otherwise isset does weird things
@@ -383,9 +387,9 @@ function crm_add_new_semester(){
 		'semester_end' => $_POST['semester_end'],
 		);
 	$wpdb->insert($table, $data);
-
-	//akimbo_crm_redirect("classes");
-	$url = get_site_url()."/wp-admin/admin.php?page=akimbo-crm2&tab=schedule";
+	//add term to semester attribute if using
+	wp_insert_term( $_POST['semester_slug'], 'pa_semester' );
+	$url = akimbo_crm_permalinks("scheduling")."&message=success";
 	wp_redirect( $url );
 	exit;
 }

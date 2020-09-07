@@ -60,6 +60,10 @@ class Akimbo_Crm_Class{
 		return $this->class_info->class_title;
 	}
 
+	function get_id(){
+		return $this->class_id;
+	}
+
 	function get_class_type(){
 		/**
 		 * find crm_casual_or_enrolment <-- In order functions. Hopefully outdated now. Replace with product meta data
@@ -161,7 +165,7 @@ class Akimbo_Crm_Class{
 		
 	}
 	
-	function get_booking_date($format = "g:ia, l jS M"){
+	function get_date($format = "g:ia, l jS M"){//
 		$class_date = date($format, strtotime($this->class_info->session_date));
 		
 		return $class_date;
@@ -260,52 +264,25 @@ class Akimbo_Crm_Class{
 		return $semester->semester_slug;
 	}
 
-	/**
-	 * 
-	 * move to class functions, send info
-	 * 
-	 */
-	function matched_orders(){
-		global $wpdb;
-		$variation_id = $this->class_info->class_id;
-		$items_ids = get_all_orders_items_from_a_product_variation( $this->class_info->class_id );
-		$matched_orders = 0;
-		foreach($items_ids as $item_id){
-			$item_info = crm_get_item_available_passes($item_id);
-			if($item_info['available']){
-				$matched_orders++;
-				if($matched_orders == 1){
-					echo "<table width='80%''><tr><th colspan='2'>Matched Orders</th></tr>";
-					$table = true;
+	function matched_orders($enrolled_students = NULL){
+		//$this->class_semester()//add check for semester
+		$matched_orders = false;
+		$items_ids = crm_return_orders_by_meta('_variation_id', $this->class_info->class_id);//not currently working
+		if($items_ids){
+			foreach($items_ids as $item_id){
+				$item_info = crm_get_item_available_passes($item_id);
+				if($item_info['available']){
+					$user = new Akimbo_Crm_User($item_info['user_id']);
+					$order_info['title'] = "Order ".$item_info['order_id'].", ". wc_get_order_item_meta( $item_id, 'class-time', true );
+					$order_info['details'] = "<br/><i>Booked by " . $user->get_firstname.", ".$item_info['remaining']." remaining</i>";
+					$matched_orders[] = $order_info;
 				}
-				$user = new Akimbo_Crm_User($item_info['user_id']);
-							
-				echo "<tr><td>Order ".$item_info['order_id'].", ". wc_get_order_item_meta( $item_id, 'class-time', true );
-				echo "<br/><i>Booked by " . $user->get_firstname.", ".$item_info['remaining']." remaining</i></td><td>";
-
-				/**
-				 * Assign order to correct student
-				 */
-				?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-				<?php echo "Student: ".$user->student_dropdown(); ?>
-				<input type="hidden" name="customer_id" value="<?php echo $user_id; ?>">
-				<input type="hidden" name="item_id" value="<?php echo $item_id;?>">
-				<input type="hidden" name="class_id" value="<?php echo $this->class_id;?>">
-				 Start Date: <input type="date" name="start_date">
-				<input type="hidden" name="action" value="kids_enrolment_confirmation">
-				<input type='submit' value='Enrol'> </form>
-				<!--Add new student button-->
-				<form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-				<input type="hidden" name="customer_id" value="<?php echo $user_id; ?>">
-				<input type="hidden" name="class" value="<?php echo $this->class_id;?>">
-				<input type="hidden" name="action" value="admin_add_new_student">
-				or <input type="text" name="student" placeholder="Student first name"> <input type='submit' value='Add New'>
-				</form></tr>
-				<?php 
 			}
 		}
-		if(isset($table)){echo "</table";}//close table tag if matched orders table created
+		return $matched_orders;
 	}
+
+	
 	
 	function class_income(){
 		$student_info = $this->get_student_info();

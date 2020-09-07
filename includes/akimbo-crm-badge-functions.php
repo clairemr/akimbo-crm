@@ -1,4 +1,29 @@
 <?php
+add_filter( 'woocommerce_account_menu_items', 'akimbo_crm_badge_account_menu_items', 10, 1 );
+add_action( 'init', 'akimbo_crm_add_my_account_badge_endpoint' );
+add_action( 'woocommerce_account_badges_endpoint', 'akimbo_crm_badges_endpoint_content' );
+
+/*
+* Add badges as menu item
+*/
+function akimbo_crm_badge_account_menu_items( $items ) {
+	unset( $items[ 'customer-logout' ] );
+	$items['badges'] = __( 'Badges', 'crm' );
+	$items['customer-logout'] = __( 'Logout', 'woocommerce' );
+ 
+    return $items;
+}
+ 
+/*
+* Add badges endpoints
+*/
+function akimbo_crm_add_my_account_badge_endpoint() {
+    add_rewrite_endpoint( 'students', EP_PAGES );
+	add_rewrite_endpoint( 'badges', EP_PAGES );
+}
+
+
+
 /*
 **
  * Add Badges endpoint HTML content.

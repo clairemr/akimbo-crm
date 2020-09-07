@@ -1,9 +1,10 @@
  
   table {
     border-collapse: collapse;
-    border: 1px solid #999966;
+    border: 1px solid #d1d1b1;
     margin-top: 10px;
     margin-bottom: 10px;
+    width: 90%;
   }
   
   table, th, td {
@@ -15,11 +16,12 @@
     background-color: #33ccff;
     height: 40px;
     vertical-align: middle;
-    color: #ffffff
+    color: #ffffff;
+    font-size: 150%;
   }
   
   table tr {
-    border-bottom: 1px solid #999966;
+    border-bottom: 1px solid #d1d1b1;
   }
   
   hr{

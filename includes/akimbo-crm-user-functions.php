@@ -1,16 +1,58 @@
-<?php 
+<?php //Akimbo Crm User Functions
+
 /**
- *
- * Crm User Functions
- * 
+ * Admin page user information
  */
 
-/*************
-Reference list
-**************
+function akimbo_crm_admin_user_info($user){
+	echo '<h3>User: ' .$user->metadata['first_name'][0]." ".$user->metadata['last_name'][0]." (". $user->metadata['nickname'][0].")</h3>";
+	echo "Phone: ".$user->metadata['billing_phone'][0];
+	echo "<br/>Email: ".$user->metadata['billing_email'][0];
+	echo "<br/>Orders: ".$user->metadata['_order_count'][0];
+	echo "<br/>Available Passes: ";
+	akimbo_crm_display_user_orders($user->get_id());
+	echo "<h4>Students</h4>";
+	$students = $user->get_students("list");
+	$display = ($students == false) ? "No students found" : $students;
+	echo $display."<br/><hr><br/>";
+	echo $user->user_admin_link("Edit user on Wordpress", "Wordpress");
+}
+
+/**
+ * Replaces crm_select_available_user_orders
+ */
+function akimbo_crm_display_user_orders($user_id, $age = NULL, $name = "item_id"){
+	$user = new Akimbo_Crm_User($user_id);
+	$orders = $user->get_available_user_orders($age, false);
+	if($orders == false){
+		$message = ($age != NULL) ? "No available ".$age." passes" : "No available orders";
+		echo $message;
+	}else{
+		echo "<select name='".$name."'>";
+		foreach($orders as $order){
+			echo "<option value='".$order['item_id']."'>".$order['name'].": ";
+			echo $order['remaining']."/".$order['passes']." ".$order['pass_type']." remaining"."</option>";
+		}
+		echo "</select>";
+	}
+}
+
+function akimbo_crm_display_user_order_account($user, $age = NULL){
+	$order = $user->get_available_user_orders($age, true);
+	if(isset($order)){
+		if($order['subscription'] == true){echo "Membership active: ";}
+		if($order['remaining'] >= 0){
+			echo "You have ".$order['remaining']."/".$order['passes']." ".$age." classes remaining, ";
+			echo "expiring on ".date(" l jS F Y", strtotime($order['expiry'])).". ".$order['url'];
+		}
+		$product_id = (isset($order['product_id'])) ? $order['product_id'] : 0;
+		$item_id = ($order['remaining'] >= 0) ? $order['item_id'] : 0;
+	}else{
+		echo "<br/><i>Please visit the <a href='".get_permalink( wc_get_page_id( 'shop' ) )."'>store</a> to purchase a class pass</i>";
+	}
+}
 
 
-*/
 add_shortcode('userList', 'akimbo_user_dropdown_shortcode'); 
 add_filter( 'wp_new_user_notification_email', 'akimbo_crm_new_user_notification_email', 10, 3 );
 add_action('user_register', 'akimbo_crm_auto_add_user_as_student');
@@ -46,31 +88,11 @@ function akimbo_user_dropdown($name, $current = NULL){
 	echo "</select>";
 }
 
-/**
- * Add function akimbo_crm_get_available_user_orders,
- * then use below function to display only.
- * Get function can then be used in user class too
- */
 
-function crm_select_available_user_orders($user_id, $name="item_id"){//$class_type = NULL <-- add check later
-	global $wpdb;
-	echo "<select name='".$name."'>";
-	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user_id,) );
-	$orders = $query->get_orders();
-	foreach ( $orders as $order ) {
-		$order_id = $order->get_id();;
-		$items = $order->get_items();
-		foreach ( $items as $item_id => $item_data ) {
-			$item_info = crm_get_item_available_passes($item_id, $order);
-			if($item_info['available'] == true){
-				?><option value="<?php echo $item_id;?>">
-				<?php echo $item_info['name'].": ".$item_info['remaining']." ".$item_info['pass_type']." remaining";
-				?></option><?php
-			}		
-		}
-	}	
-	?></select><?php
-}
+
+
+
+
 
 function akimbo_crm_new_user_notification_email( $wp_new_user_notification_email, $user, $blogname ) {
 	$message = sprintf(__('Hi %s,'), $user->display_name) . "\r\n\r\n";
@@ -139,92 +161,3 @@ function akimbo_crm_auto_add_user_as_student_woocommerce($customer_id) {//remove
 		);
 	$wpdb->insert($table, $data);
 }
-
-
-/**
- * Archived functions
- */
-
- /*function casual_return_available_sessions($user, $age = NULL){
-	//get customer orders
-	$statuses = ['completed','processing'];
-	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user,'status' => $statuses) );
-	//$statuses = ['completed','processing'];
-	//$orders = wc_get_orders( ['limit' => -1, 'status' => $statuses] );
-	$orders = $query->get_orders();
-	
-	if($age != NULL){
-		$option = "akimbo_crm_".$age."_class_products";
-		$products = get_option($option); //get product options
-	}else{
-		$products = array_merge(get_option('akimbo_crm_adult_class_products'), get_option('akimbo_crm_playgroup_class_products'));
-	}
-	
-	foreach ( $orders as $order ) {
-		$order_id = $order->get_id();
-		$crm_order = wc_get_order($order_id);
-		$items = $crm_order->get_items();
-		foreach ( $items as $item_id => $item_data ) {
-			$product = $item_data['product_id'];
-			//if($product=='1499' || $product=='1536'){
-			if(in_array($product, $products)){
-				$sessions_available = $item_data['quantity']*$item_data['pa_sessions'];
-				$current_order['sessions_used'] = $item_data['sessions_used'];
-				if(!$item_data['pa_sessions']){	//$current_pricing = false;
-				} elseif($item_data['sessions_used'] >= $sessions_available){//updated >= 15/07/19
-				} else {$current_pricing = true;
-					$current_order_id = $item_id;
-					$url = get_permalink( wc_get_page_id( 'myaccount' ) );
-					$current_order['sessions'] = $item_data['pa_sessions'];
-					$current_order['order_id'] = $order_id;
-					$current_order['item_id'] = $item_id;
-					$current_order['product_id'] = $item_data['product_id'];
-					$current_order['available'] = $sessions_available;
-					$current_order['quantity'] = $item_data['quantity'];
-					$current_order['name'] = $item_data['name'];
-					$current_order['used'] = $item_data['sessions_used'];
-				}
-			}
-		}
-	}
-	return $current_order;
-}*/
-
-/**
- *
- * Option values for dropdown list. Usage: <select name="item_id"><?php crm_show_available_sessions($user_id); ?></select>
- * 
- */
-/*function crm_show_available_sessions($user_id){
-	$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $user_id,) );
-	$orders = $query->get_orders();
-	foreach ( $orders as $order ) {
-		$order_id = $order->ID;
-		$crm_order = wc_get_order($order_id);
-		$items = $crm_order->get_items();
-		foreach ( $items as $item_id => $item_data ) {
-			$sessions = $item_data['pa_sessions']*$item_data['qty'];//use this variable to calculate for multiple passes bought
-			if(!$item_data['pa_sessions']){//$current_pricing = false;
-			} elseif($item_data['sessions_used'] >= $sessions){//$current_pricing = false;//updated >= 15/07/19
-			} else {
-				$current_products[] = $item_data['product_id'];
-				if (!$item_data['sessions_used']){$sessions_used = 0;$add_meta=true;}else{$sessions_used = $item_data['sessions_used'];}
-				?><option value="<?php echo $item_id;?>"><?php echo $item_data['name'].": ".$sessions_used."/".$sessions." sessions";?></option><?php
-			}
-		}
-	}	
-}*/
-
-//add_filter( 'wp_new_user_notification_email_admin', 'akimbo_crm_new_user_notification_email_admin', 10, 3 );
-/*function akimbo_crm_new_user_notification_email_admin($wp_new_user_notification_email, $user, $blogname) {
-
-    $user_count = count_users();
-
-    $wp_new_user_notification_email['subject'] = sprintf('[%s] New user %s registered.',$blogname, $user->user_login);
-    $wp_new_user_notification_email['message'] =
-    sprintf( "%s has registerd to your blog %s.", $user->user_login, $blogname) .
-"\n\n\r" . sprintf("This is user number %d!", $user_count['total_users']);
-
-    return $wp_new_user_notification_email;
-
-}*/

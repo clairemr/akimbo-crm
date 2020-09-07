@@ -1,0 +1,128 @@
+function get_user_subscriptions($age = NULL){
+		global $wpdb;
+		$age = ($age != NULL) ? $age : "adult";
+		$product_ids = akimbo_crm_return_posts_by_meta("age_slug", $age, "id");
+		//$product_ids = akimbo_crm_get_product_ids_by_age($age_slug);
+		/*$option = 'akimbo_crm_'.$age.'_class_products';
+		$product_ids = get_option($option);	*/	
+
+		$users_subscriptions = wcs_get_users_subscriptions($this->user_id);
+		//currently will only work for one subscription, check for multiple subscription behaviour
+		foreach ($users_subscriptions as $subscription){
+			if ($subscription->has_status(array('active'))) {
+				$subscription_info = array('id' => $subscription->get_id());
+				
+				$parent = method_exists( $subscription, 'get_parent_id' ) ? $subscription->get_parent_id() : $subscription->order->id;
+				$orders = $subscription->get_related_orders('all');
+				$order = reset( $orders );
+				$items = $order->get_items();
+				
+				//$subscription_info['items'] = $order->get_items();
+				foreach ( $items as $item_id => $item_data ) {
+					$product_id = $item_data['product_id'];
+					//$subscription_info['product_id'] = $item_data['product_id'];
+					//$subscription_info['options'] = $product_ids;
+					if(in_array($product_id, $product_ids)){
+						$subscription_info = crm_get_item_available_passes($item_id, $order);
+						
+						/*$subscription_info['order_id'] = $order->get_id();
+						$subscription_info['product_id'] = $item_data['product_id'];
+						$subscription_info['item_id'] = $item_id;
+						$subscription_info['options'] = $product_ids;
+						if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
+							$subscription_info['sessions'] = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
+							$subscription_info['passes'] = $subscription_info['sessions'];//allows sessions & weeks to be used interchangeably
+							$subscription_info['sessions_used'] = (isset($item_data['sessions_used'])) ? $item_data['sessions_used'] : 0;
+							$subscription_info['remaining'] = $subscription_info['sessions'] - $subscription_info['sessions_used'];
+						}elseif(isset($item_data['weeks'])){
+							$subscription_info['weeks'] = $item_data['weeks'];
+							$subscription_info['passes'] = $subscription_info['weeks'];//allows sessions & weeks to be used interchangeably
+							$subscription_info['weeks_used']= (isset($item_data['weeks_used'])) ? $item_data['weeks_used'] : 0;
+							$subscription_info['remaining'] = $subscription_info['weeks'] - $subscription_info['weeks_used'];
+						}
+						$subscription_info['expiry'] = (isset($item_data['expiry_date'])) ? $item_data['expiry_date'] : $subscription->get_date( 'next_payment' );*/
+						$subscription_info['parent'] = $parent;
+						$subscription_info['active'] = true;
+						$subscription_info['type'] = "subscription";
+						$subscription_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-subscription/".$subscription_info['id']."/'>View Subscription</a>";
+						$subscription_info['next'] = $subscription->get_date( 'next_payment' );
+					}			
+				}
+			}			  
+		}
+		
+		return $subscription_info;
+	}
+
+	function available_orders($age = NULL, $number_of_orders = "single"){
+		global $wpdb;
+		$available_orders = NULL;
+		if($age != NULL){
+			$product_ids = akimbo_crm_return_posts_by_meta("age_slug", $age, "id");
+			$order_info['options'] = $product_ids;
+		}
+		$statuses = ['completed','processing'];
+		$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC','customer_id' => $this->user_id,'status' => $statuses) );
+		$orders = $query->get_orders();
+		foreach ( $orders as $order ) {
+			$order_id = $order->get_id();
+			$crm_order = wc_get_order($order_id);
+			$order_info['$order_id'] = $order_id;
+			$items = $crm_order->get_items();
+			foreach ( $items as $item_id => $item_data ) {
+				if($age != NULL){//check against product ids
+					if(!in_array(in_array($item_data['product_id'], $product_ids))){
+						continue;//skip rest of iteration
+					}
+				}
+				$order_info = crm_get_item_available_passes($item_id, $order);
+				if($order_info['available'] == true){
+					if($number_of_orders == "single"){//use the first available order with remaining sessions
+						$available_orders = $order_info;
+						break;
+					}else{
+						$available_orders[] = $order_info;
+					}
+				}			
+			}
+		}
+		
+		return $available_orders;
+	}
+
+	/*function display_user_orders_account($age = NULL){
+		$age = ($age == NULL) ? $this->get_age() : $age;
+		$order = $this->get_user_subscriptions($age);
+		if(!isset($order)){
+			$order = $this->available_orders($age, true);
+		}
+		if(isset($order)){
+			if($order['subscription'] == true){echo "Membership active: ";}
+			if($order['remaining'] >= 0){
+				echo "You have ".$order['remaining']."/".$order['passes']." ".$age." classes remaining, expiring on ".date(" l jS F", strtotime($order['expiry'])).". ";
+				echo $this->order_link($order['order_id'], "View Order");
+			}
+			$product_id = (isset($order['product_id'])) ? $order['product_id'] : 0;
+			$item_id = ($order['remaining'] >= 0) ? $order['item_id'] : 0;
+		}else{
+			echo "<br/><i>Please visit the <a href='".get_permalink( wc_get_page_id( 'shop' ) )."'>store</a> to purchase a class pass</i>";
+		}
+		/*if($order['remaining'] <= 0){echo "You've run out of passes! Renew or upgrade your subscription to attend more classes. ".$order['url'];}*/
+	//}*/
+
+    
+	/*function display_user_orders_admin($age = NULL, $display = "list", $name = "order_id"){
+		global $wpdb;
+		$passes = $this->get_available_user_orders($age);
+		if($passes == false){
+			$message = ($age != NULL) ? "No available ".$age." passes" : "No available orders";
+			echo $message;
+		}else{
+			if($display == "select"){echo "<select name='".$name."'>";}
+			foreach($passes as $pass){
+				$pass_details = $pass['name'].": ".$pass['remaining']."/".$pass['passes']." ".$pass['pass_type']." remaining";
+				if($display == "select"){echo "<option value='".$pass['id']."'>".$pass_details."</option>";}else{echo "<br/>".$pass_details;}
+			}
+			if($display == "select"){echo "</select>";}
+		}
+	}*/

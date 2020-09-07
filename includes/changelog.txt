@@ -3,20 +3,41 @@ Y-m-d H:i for backend
 g:ia, l jS M for classes and parties
 F, Y months
 l jS F semesters
+//$result = false;
+$url = (isset($_POST['url'])) ? $_POST['url'] : akimbo_crm_permalinks("staff");
+$message = ($result) ? "success" : "failure";
+$url .= "&message=".$message;
+wp_redirect( $url ); 
+exit;
+
+find all <tr bgcolor = '#33ccff'> and replace with th for consistent styling
 
 
-Change all urls to akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args = NULL)
-or akimbo_crm_class_permalink($class_id = NULL, $display = NULL)
-
-Update all date headers to crm_date_selector_header($page, $date = NULL, $period = "month")
-
-Fix business details page (bottom of admin-functions)
-
+Updates
+ - Change all urls to akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args = NULL)
+    or akimbo_crm_class_permalink($class_id = NULL, $display = NULL). //admin_url() goes to site/wp-admin
+- Update all date headers to crm_date_selector_header($page, $date = NULL, $period = "month")
 Go through custom functions, delete unused and outdated functions
+ - crm_weeks_remaining
+ - check attendance check in kids_class_enrolment() (matched orders)
+ -enrolment functions in class-functions.php
 
-Add SQL table code to plugin so it sets up correctly, once all changes have been made <-- to avoid creating unnecessary tables
 
-References:
+
+ Changes for repository version:
+ - Allow waiver uploaded as txt
+ - Check all forms have sanitized text inputs
+ - CHeck behaviour of plugin if subscriptions not installed
+ - Add SQL table code to plugin so it sets up correctly, once all changes have been made <-- to avoid creating unnecessary tables
+-add attributes when installing plugin: https://stackoverflow.com/questions/29549525/create-new-product-attribute-programmatically-in-woocommerce
+
+ Less urgent
+ - Fix business details page (bottom of admin-functions)
+ fix matched orders in class class to check for semesters
+update duplicate students function
+akimbo_crm_get_students (used in Mailchimp) combine with student statistics
+
+ References:
 Add custom fields to booking product page
  * https://wisdmlabs.com/blog/add-custom-data-woocommerce-order-2/ 
 
