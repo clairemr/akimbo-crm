@@ -87,12 +87,6 @@ function akimbo_crm_manage_mailchimp_integration($page, $tab){
  */
 
 function akimbo_crm_mailchimp_connection($email = NULL){
-	/*$connection['apikey'] = "4dc5e76991af0d9ead66a1934a7261fe-us3";
-	if($email != NULL){$connection['userid'] = md5( strtolower( $email ) );}
-	$connection['auth'] = base64_encode( 'user:'. $connection['apikey'] );
-	$connection['server'] = "us3";
-	//$listid = "4e3828afd5"; //Welcome to Circus Akimbo 
-	$connection['listid'] = "6129e84ea3"; //Live list*/
 	$connection['apikey'] = get_option('akimbo_crm_mailchimp_apikey');
 	$connection['auth'] = base64_encode( 'user:'. $connection['apikey'] );
 	$connection['listid'] = get_option('akimbo_crm_mailchimp_list_id');
