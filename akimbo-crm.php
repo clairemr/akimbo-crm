@@ -53,7 +53,7 @@ function akimbo_crm_create_db_tables(){
 			ord_id int(6) NOT NULL,
 			enrolled tinyint(1) NOT NULL,
 			attended tinyint(1) NOT NULL
-			PRIMARY KEY  (student_id)
+			PRIMARY KEY  (attendance_id)
 			) $charset_collate;";
 		dbDelta( $sql );
 
@@ -386,7 +386,6 @@ class AkimboCRM {
 		include_once 'includes/class-akimbo-crm-availability.php';
 		include_once 'includes/class-akimbo-crm-booking.php';
 		include_once 'includes/class-akimbo-crm-class.php';
-		include_once 'includes/class-akimbo-crm-party.php';
 		include_once 'includes/class-akimbo-crm-payroll.php';
 		include_once 'includes/class-akimbo-crm-staff.php';
 		include_once 'includes/class-akimbo-crm-student.php';
