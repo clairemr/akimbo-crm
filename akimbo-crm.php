@@ -43,8 +43,10 @@ function akimbo_crm_create_db_tables(){
 		 /**
 		  * Attendance Table
 		  */
+		  //$sql = "CREATE TABLE $table_name (
+		//	student_id int(11) NOT NULL AUTO_INCREMENT,
 		$table_name = $wpdb->prefix . "crm_attendance"; 
-		$sql = "CREATE TABLE $table_name(
+		$sql = "CREATE TABLE $table_name (
 			attendance_id int(11) NOT NULL AUTO_INCREMENT,
 			class_list_id int(6) NOT NULL,
 			student_id int(5) NOT NULL,
@@ -52,11 +54,10 @@ function akimbo_crm_create_db_tables(){
 			student_name tinytext NOT NULL,
 			ord_id int(6) NOT NULL,
 			enrolled tinyint(1) NOT NULL,
-			attended tinyint(1) NOT NULL
+			attended tinyint(1) NOT NULL,
 			PRIMARY KEY  (attendance_id)
 			) $charset_collate;";
 		dbDelta( $sql );
-
 		/*
 		 * Booking Availability
 		 */
@@ -67,7 +68,7 @@ function akimbo_crm_create_db_tables(){
 		session_date datetime DEFAULT '0000-00-00 00:00:00',
 		duration int(11),
 		availability tinyint(1),
-		availabilities text DEFAULT NULL
+		availabilities text DEFAULT NULL,
 		PRIMARY KEY  (avail_id)
 		) $charset_collate;";
 		dbDelta( $sql );
@@ -86,7 +87,7 @@ function akimbo_crm_create_db_tables(){
 			location tinytext NOT NULL,
 			duration int(4) NOT NULL,
 			trainers text NOT NULL,
-			semester_slug tinytext NOT NULL
+			semester_slug tinytext NOT NULL,
 			PRIMARY KEY  (list_id)
 		) $charset_collate;";
 		dbDelta( $sql );
@@ -114,7 +115,7 @@ function akimbo_crm_create_db_tables(){
 			semester_id int(11) NOT NULL,
 			semester_slug tinytext NOT NULL,
 			semester_start date NOT NULL,
-			semester_end date NOT NULL
+			semester_end date NOT NULL,
 			PRIMARY KEY  (semester_id)
 		) $charset_collate;";
 		dbDelta( $sql );
