@@ -67,9 +67,9 @@ function akimbo_crm_account_permalinks($permalink = NULL, $id = NULL, $text = NU
 	$url = get_permalink( get_option('woocommerce_myaccount_page_id') );
 	switch($permalink){
 		case "students":
-			$url .= "/students/";
+			$url .= "/students/?";
 	    	$args = array(
-				'student_id' => $id,
+				'student' => $id,
 			);
 	    break;
 	    default: 
@@ -175,17 +175,13 @@ function akimbo_crm_permalinks($permalink, $format = "link", $text = NULL, $args
 	}
 	if ($args != NULL) {
 		foreach($args as $key => $value){$url .= "&".$key."=".$value;}
+	}	
+	if($text != NULL || $format == "button"){
+		$text = ($text == NULL) ? ucfirst($permalink) : $text;
+		$url = ($format == "button") ? "<a href='".$url."'><button>".$text."</button></a>" : "<a href='".$url."'>".$text."</a>";
 	}
-	if($format == "link"){
-		$result = ($text != NULL) ? "<a href='".$url."'>".$text."</a>" : $url;
-		return $result;
-	}elseif($format == "array"){//use to update date selector
-		return array($page, $tab);
-	}else{
-		$display = ($format == "button") ? "<button>".$text."</button>" : $text;
-		$result = "<a href='".$url."'>".$display."</a>";
-		echo $result;
-	}
+	
+	return $url;
 }
 
 /***********************************************************************************************

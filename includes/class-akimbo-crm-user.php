@@ -150,6 +150,7 @@ class Akimbo_Crm_User extends WP_User{
 						}
 					}
 					$order_info = crm_get_item_available_passes($item_id, $available_order);
+					//$available_orders[] = $order_info;
 					if($order_info['available'] == true){						
 						if($single == true){
 							$available_orders = $order_info;
@@ -157,6 +158,8 @@ class Akimbo_Crm_User extends WP_User{
 						}else{
 							$available_orders[] = $order_info;
 						}
+					}elseif($available == false){//show all
+						$available_orders[] = $order_info;
 					}			
 				}				
 			}
@@ -172,7 +175,7 @@ class Akimbo_Crm_User extends WP_User{
 	 * Links to student details page by default, or to Wordpress user edit page
 	 */
 	function user_admin_link($display = NULL, $link = "admin"){//text to display or link only
-		$url = ($link == "admin") ? akimbo_crm_permalinks("students")."&user=".$this->user_id : get_edit_user_link( $this->user_id);
+		$url = akimbo_crm_permalinks("students")."&user=".$this->user_id;
 		$url = ($display != NULL) ? "<a href='".$url."'>".$display."</a>" : $url;
 		return $url;
 	}

@@ -218,7 +218,7 @@ function akimbo_crm_mailchimp_get_all_merge_fields($email, $field = NULL){
 	curl_close($ch);
 	
 	$obj = json_decode($result, true);
-	if(!isset($obj['merge_fields'])){$merge_fields = "User not subscribed";
+	if(!isset($obj['merge_fields'])){$merge_fields = false;
 	} else{
 		$merge_fields = $obj['merge_fields'];
 		$result = ($field != NULL) ? $merge_fields[$field] : $merge_fields;	

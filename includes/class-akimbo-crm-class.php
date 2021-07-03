@@ -266,19 +266,26 @@ class Akimbo_Crm_Class{
 
 	function matched_orders($enrolled_students = NULL){
 		//$this->class_semester()//add check for semester
-		$matched_orders = false;
-		$items_ids = crm_return_orders_by_meta('_variation_id', $this->class_info->class_id);//not currently working
-		if($items_ids){
-			foreach($items_ids as $item_id){
-				$item_info = crm_get_item_available_passes($item_id);
-				if($item_info['available']){
-					$user = new Akimbo_Crm_User($item_info['user_id']);
-					$order_info['title'] = "Order ".$item_info['order_id'].", ". wc_get_order_item_meta( $item_id, 'class-time', true );
-					$order_info['details'] = "<br/><i>Booked by " . $user->get_firstname.", ".$item_info['remaining']." remaining</i>";
-					$matched_orders[] = $order_info;
+		//$matched_orders = false;
+		$matched_orders = array();
+		$query = new WC_Order_Query( array('orderby' => 'date','order' => 'DESC') );
+		$orders = $query->get_orders();//get all orders
+		foreach ( $orders as $order ) {
+			$items = $order->get_items();
+			foreach ( $items as $item) {
+				$variation = $item->get_variation_id();
+				if($variation == $this->class_info->class_id){
+					$item_info = crm_get_item_available_passes($item->get_id());
+					if($item_info['available']){
+						$user = new Akimbo_Crm_User($item_info['user_id']);
+						$item_info['title'] = "Order ".$item_info['order_id'].", ". wc_get_order_item_meta( $item_id, 'class-time', true );
+						$item_info['details'] = "<br/><i>Booked by " . $user->user_firstname.", ".$item_info['remaining']." remaining</i>";
+						$matched_orders[] = $item_info;
+					}
 				}
 			}
 		}
+
 		return $matched_orders;
 	}
 

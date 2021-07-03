@@ -2,7 +2,7 @@
 
 /***********************************************************************************************
  * 
- * Add and Update Student Functions
+ * Add and Update Student Functions 
  * 
  ***********************************************************************************************/
 
@@ -18,8 +18,8 @@ function update_student_details_form($id = NULL, $url = NULL, $admin = NULL){//$
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
 	<br/>Student first name: <input type="text" name="student_firstname" <?php if($id != NULL){ ?> value="<?php echo $info->student_firstname;?>" <?php } ?> required>
 	<br/>Student last name: <input type="text" name="student_lastname" <?php if($id != NULL){ ?> value="<?php echo $info->student_lastname;?>" <?php } ?> >
-	<br/>Student DOB: <input type="date" name="student_dob" <?php if($id != NULL){ ?> value="<?php echo $info->student_dob;?>" <?php } ?> >
-	<br/>Relationship to you: <small></small>
+	<br/>Student DOB: <input type="date" name="student_dob" <?php if($id != NULL){ ?> value="<?php echo $student->get_dob('Y-m-d');?>" <?php } ?> >
+	<br/>Relationship to you: 
 	<select name="student_rel">
 		<?php 
 		if($id != NULL){ 
@@ -75,12 +75,10 @@ function update_student_details_form($id = NULL, $url = NULL, $admin = NULL){//$
 			<input type="checkbox" name="waiver" value="<?php echo $time; ?>" <?php if($admin == NULL){echo "required";} ?> >I have read this release of liability and assumption of risk agreement, and agree to the terms.
 			<?php 	
 		}
-	}	
-	if($url == NULL){//send back to enrolment page
-		$url = get_site_url()."/enrolment?";
-	}  ?>
-	<input type="hidden" name="referral_url" value="<?php echo $url; ?>">
+	}?>
+	
 	<input type="hidden" name="action" value="crm_add_student">
+	<input type="hidden" name="referral_url" value="<?php echo $url; ?>">
 	<br/><br/><input type="submit" value="Update Student Details"> <!--<input type="submit" value="Save and add new">-->
 	</form>
 	<!--End student details form -->
@@ -100,12 +98,12 @@ function crm_add_student(){
 	global $wpdb;
 	$table = $wpdb->prefix.'crm_students';
 	$student_firstname = sanitize_text_field($_POST['student_firstname']);
-	$student_lastname = sanitize_text_field($_POST['student_firstname']);
+	$student_lastname = sanitize_text_field($_POST['student_lastname']);
 	if(!isset($_POST['class'])){
 		$data = array(
 			'student_firstname' => $student_firstname,
 			'student_lastname' => $student_lastname,
-			'student_dob' => sanitize_text_field($_POST['student_dob']),
+			'student_dob' => $_POST['student_dob'],
 			'student_rel' => strtolower(sanitize_text_field($_POST['student_rel'])),
 			'student_notes' => sanitize_text_field($_POST['student_notes']),
 			'marketing' => sanitize_text_field($_POST['marketing']),
@@ -118,7 +116,7 @@ function crm_add_student(){
 		);
 	}
 	
-	$waiver = $_POST['waiver'];
+	//$waiver = $_POST['waiver'];
 	if(isset($_POST['waiver']) && !isset($_POST['update'])){//check to avoid wiping waiver data on updates
 		$data += ['student_waiver' => $_POST['waiver']];
 	}
@@ -139,9 +137,8 @@ function crm_add_student(){
 			array ('student_id' => $_POST['student_id'])//updates in case of duplicates
 		);
 	}
-
-	if($_POST['referral_url']){
-		$url = $_POST['referral_url']."&student=".$student_id;
+	if(isset($_POST['referral_url'])){
+		$url = ($_POST['referral_url'] == "students") ? akimbo_crm_account_permalinks("students", $student_id) : get_site_url()."/enrolment?"."&student=".$student_id;
 	}elseif(isset($_POST['class'])){
 		$url = akimbo_crm_class_permalink($_POST['class']);
 	}else{
@@ -198,7 +195,7 @@ function crm_student_dropdown($name = "student", $exclude = NULL, $user_id = NUL
 			akimbo_crm_class_permalink($class->get_id(), $class_info->class_title);
 			echo "</td><td>".$class_info->attended."</td><td>";
 			if($class_info->ord_id >=1){
-				echo crm_order_info_from_item_id($class_info->ord_id, "id", $class_info->ord_id);
+				echo crm_order_info_from_item_id($class_info->ord_id, "url", $class_info->ord_id);
 			}else{
 				akimbo_crm_update_unpaid_classes($student->get_user_id(), $class_info->attendance_id, $class_info->age_slug, akimbo_crm_student_permalink($student->get_id()));
 			}
@@ -328,7 +325,6 @@ function crm_merge_duplicate_students(){
 function akimbo_crm_update_unpaid_classes($user_id, $attendance_id, $age = NULL, $url = NULL){
 	global $wpdb;
 	$url = ($url != NULL) ? $url : akimbo_crm_permalinks("payments");
-	echo $age;
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
 	<?php akimbo_crm_display_user_orders($user_id, $age, "item_id");?>
 	<input type="hidden" name="att_id" value="<?php echo $attendance_id;?>">
@@ -359,8 +355,10 @@ add_action( 'admin_post_admin_assign_order_id', 'admin_assign_order_id' );
 function admin_assign_order_id($item_id = NULL, $att_id = NULL, $url = NULL, $disassociate = false){//post item_id, post att_id, optional post referral_url		
 	global $wpdb;
 	$item_id = ($item_id != NULL) ? $item_id : $_POST['item_id'];
-	$att_id = ($att_id != NULL) ? $att_id : $_POST['att_id'];
-	$disassociate = (isset($disassociate) && $disassociate != NULL) ? $disassociate : $_POST['disassociate'];
+	if(isset($_POST['att_id'])){$att_id = $_POST['att_id'];}
+	
+	//$disassociate = (isset($disassociate) && $disassociate != NULL) ? $disassociate : $_POST['disassociate'];
+	$disassociate = (isset($_POST['disassociate']) && $_POST['disassociate'] != NULL ) ? $_POST['disassociate']: $disassociate;
 	//update crm_attendance
 	if(isset($att_id) && $att_id >=1){
 		$table = $wpdb->prefix.'crm_attendance';
@@ -370,22 +368,27 @@ function admin_assign_order_id($item_id = NULL, $att_id = NULL, $url = NULL, $di
 	}
 
 	//update sessions or weeks
-	$item_data = new WC_Order_Item_Product($item_id);
+	if($item_id == 999999 || $item_id == NULL){//don't do this
+	}else{
+		$item_data = new WC_Order_Item_Product($item_id);
 		if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
 			$pass_type = "sessions";
 		}elseif(isset($item_data['weeks'])){
 			$pass_type = "weeks";
 		}
-	$meta_key = $pass_type."_used";
-	$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");
-	wc_update_order_item_meta($item_id, $meta_key, $meta_value);
+		$meta_key = $pass_type."_used";
+		$meta_value = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = $item_id ");
+		$result = wc_update_order_item_meta($item_id, $meta_key, $meta_value);
+	}
 	
-	$url = ($_POST['referral_url'] != NULL) ? $_POST['referral_url'] : $url;
+	$url = (isset($_POST['referral_url']) && $_POST['referral_url'] != NULL) ? $_POST['referral_url'] : $url;
 	if($url != NULL){
 		$url = ($_POST['referral_url'] != NULL) ? $_POST['referral_url'] : akimbo_crm_permalinks("payments");
 		$message = ($result) ? "success" : "failure";
 		$url .= "&message=".$message;
 		wp_redirect( $url ); 
 		exit;
+	}else{
+		return $result;
 	}
 }

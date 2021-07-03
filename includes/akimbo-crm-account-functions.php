@@ -69,7 +69,7 @@ function akimbo_crm_account_dashboard(){
 	echo apply_filters('akimbo_crm_above_account_dashboard_message', "<p>".get_option('akimbo_crm_account_message')."<p><hr>");
 	if($student->get_student_info()->student_waiver <= 0){
 		echo "<p><b>Please ";
-		akimbo_crm_student_permalink($student_id, "update your student details", false); 
+		echo akimbo_crm_student_permalink($student_id, "update your student details", false); 
 		echo " before attending your next class</b></p><hr>";
 	}
 	echo "<h2>Upcoming ".ucwords($age)." Classes</h2>";
@@ -86,7 +86,11 @@ function akimbo_crm_account_dashboard(){
 function crm_bookable_timetable($age = NULL, $limit = 14, $user = NULL, $student = NULL, $trial = false){
 	global $wpdb;
 	$today = current_time('Y-m-d-h:ia');
-	$student_classes = ($student != NULL) ? $student->get_upcoming_classes(): NULL;//array of class objects
+	$student_classes = ($student != NULL) ? $student->get_classes("object", "future"): NULL;//array of class objects
+	/*foreach($student_classes as $student_class){
+		$class_info = $student_class[0];
+		$class = $student_class[1];
+	}*/
 	$order = ($user != NULL) ? $user->get_available_user_orders($age, true) : NULL;
 	$enrolled = false;
 	
@@ -103,81 +107,75 @@ function crm_bookable_timetable($age = NULL, $limit = 14, $user = NULL, $student
 		$header .= "<th>Places</th><th></th></tr>";
 		echo $header;
 		foreach($class_list_ids as $class_list_id){
+			
 			/**
 			 * Get Class information
 			 */
 			$class = new Akimbo_Crm_Class($class_list_id->list_id);
 			$class_info = $class->get_class_info();
 			$class_capacity = $class->capacity();
+			$enrolled = false;
 			if(isset($student_classes)){//Get student enrolment information, if student is set and compare to class
 				foreach($student_classes as $student_class){
-					$enrolled = ($class->get_class_info()->list_id == $student_class->list_id) ? true : false;
+					$enrolled_class_info = $student_class[0];
+					if($class->get_id() == $enrolled_class_info->list_id){
+						$enrolled = true;
+						break;
+					}
 				}
 			}
+			if($age != 'kids' && $today <= $class_info->cancel_date){$unenrol = true;}
+			$capacity_display = $class_capacity['places']."/".$class_capacity['capacity']." places available";
+			$capacity_display = apply_filters('akimbo_crm_account_capacity_display', $capacity_display);
+			/**
+			 * Class Title display
+			 */
+			$class_title = NULL;
+			if($class_info->class_id == 2){$class_title .= "Virtual Class: ";}
+			$class_title .= $class_info->class_title."<br/><small>";
+			$class_title .= date("g:ia l jS F Y", strtotime($class_info->session_date)).", ".$class_info->location."</small>";
+			$class_row = "<tr><td>".apply_filters('akimbo_crm_account_class_title', $class_title)."</td><td>";
+			//fill age column if needed (e.g. if showing a mix of ages)
+			if($age == NULL){$class_row .= ucwords($class_info->age_slug)."</td><td>";}
 			
-			/**
-			 * Display Class row
-			 */
-			echo "<tr><td>";
-			if($class_info->class_id == 2){echo "Virtual Class: ";}//identify virtual classes by class id of 2
-			echo $class_info->class_title."<br/><small>";
-			echo date("g:ia l jS F Y", strtotime($class_info->session_date)).", ".$class_info->location."</small></td><td>";
-			if($age == NULL){echo ucwords($class_info->age_slug)."</td><td>";}//fill age column if needed
-			/**
-			 * If student is enrolled, show "enrolled" and unenrol button
-			 */
+			//If student is enrolled, show "enrolled" and unenrol button
 			if($enrolled == true){
-				echo apply_filters('akimbo_crm_account_enrol_message', "<b>Enrolled</b>");
-				echo "</td><td>";
-				if($age != 'kids' && $today <= $class_info->cancel_date) {
-					apply_filters('akimbo_crm_account_session_unenrol', crm_student_unenrol_button($upcoming_class->attendance_id));
+				$enrol_info = apply_filters('akimbo_crm_account_enrol_message', "<b>Enrolled</b> <br/><i>".$capacity_display."</i>");
+				$enrol_info .="</td><td>";
+				if($age != 'kids' && $today <= $class_info->cancel_date){//Allow unenrolment
+					$enrol_info .= apply_filters('akimbo_crm_account_session_unenrol', akimbo_crm_unenrol_student_button($enrolled_class_info->attendance_id,$enrolled_class_info->ord_id));
 				}
-			/**
-			 * If class is free, allow students with a valid pass to enrol
-			 */
+			//If class is free, allow students with a valid pass to enrol
 			}elseif($class_info->class_id < 1){//free classes have class_id of 0
-				$free_class_booking_message = "<i>".$class_capacity['count']." bookings. This session is free with a valid pass!</i>";
-				echo apply_filters('akimbo_crm_account_free_class_booking_message', $free_class_booking_message);
-				echo "</td><td>";
-				//Remove if statement to make it free to everyone or add a check for the order type e.g. membership	
-				if(isset($order)){
-					crm_casual_enrol_button($student->student_id, $class_list_id->list_id, 999999, NULL, $class_info->age_slug);
+				$enrol_info = apply_filters('akimbo_crm_account_free_class_booking_message', "<i>".$capacity_display.". This session is free with a valid pass!</i>");
+				$enrol_info .= "</td><td>";
+				if(isset($order)){//Remove if statement to make it free to everyone or add a check for the order type e.g. membership	
+					$enrol_info .= crm_casual_enrol_button($student->student_id, $class_list_id->list_id, 999999, NULL, $class_info->age_slug);
 				}
-			/**
-			 * If student not enrolled, show available places and appropriate enrol button
-			 */
+			//If student not enrolled, show available places and appropriate enrol button
 			}else{						
-				$capacity_display = "<i>".$class_capacity['places']."/".$class_capacity['capacity']." places available</i></td><td>";
-				echo apply_filters('akimbo_crm_account_capacity_display', $capacity_display);
-				
-				$product_ids = unserialize($class_info->prod_id);
-
-				/**
-				 * Booking button. If class is not full, show appropriate trial or class product
-				 */
-				if($trial == true && !$class_capacity['is_full']){//show trial product
-					$product_id = reset($product_ids);//get first product
-					$trial_product = get_post_meta($product_id, 'trial_product', true );
-					if($trial_product >=1){
-						echo "<a href='".get_permalink($trial_product)."'><button>Book Trial</button></a></td></tr>";
-					}else{
-						echo "<i>Trial unavailable for this class</i></td></tr>";
+				$enrol_info = $capacity_display."</td><td>";
+				if($class_capacity['is_full']){
+					$enrol_info .= apply_filters('akimbo_crm_account_capacity_reached', "<i>Class Full</i>");
+				}else{
+					$product_ids = ($class_info->prod_id) ? unserialize($class_info->prod_id) : array();
+					$product_id = ($trial == true) ? get_post_meta(reset($product_ids), 'trial_product', true ) : reset($product_ids);//get first product
+					$button_text = ($trial == true) ? "Book Trial" : "Buy Pass";
+					//var_dump(reset($product_ids));
+					if($product_id >= 1){
+						if($order['remaining'] >= 1 && in_array($order['product_id'], $product_ids) && $age != 'kids'){
+							$enrol_info .= crm_casual_enrol_button($student->student_id, $class_list_id->list_id, $order['item_id'], NULL, $class_info->age_slug);
+						} else{
+							$enrol_info .= apply_filters('akimbo_crm_account_buy_pass', "<a href='".get_permalink($product_id)."'><button>Buy Pass</button></a>");//defaults to first value of array
+						}
+					}elseif($trial == true){
+						$enrol_info .= "<i>Trial unavailable for this class</i>";
 					}
-				}elseif(!$class_capacity['is_full']){//show enrol button if user has a valid order, or class product page
-					if($order['remaining'] >= 1 && in_array($order['product_id'], $product_ids) && $age != 'kids'){
-						crm_casual_enrol_button($student->student_id, $class_list_id->list_id, $order['item_id'], NULL, $class_info->age_slug);
-					} else{
-						echo apply_filters('akimbo_crm_account_buy_pass', "<a href='".get_permalink(reset($product_ids))."'><button>Buy Pass</button></a>");//defaults to first value of array
-					}
-				}else{//don't allow bookings for full classes
-					echo apply_filters('akimbo_crm_account_capacity_reached', "<i>Class Full</i>");
-				}
-			}
-			/**
-			 * Reset enrolled variable to run check again on next class
-			 */
-			$enrolled = false;
-			echo "</td></tr>";
+				}			
+			}	
+			
+			$class_row .= $enrol_info."</td></tr>";
+			echo $class_row;
 		}
 		echo "</table>";
 	}
@@ -230,9 +228,8 @@ function akimbo_crm_raf_referral_code($atts){//$page = null
 	extract(shortcode_atts(array('page' => ''), $atts));
 	$user_id = get_current_user_id();
 	$referral_id = get_user_meta($user_id, "gens_referral_id", true);
-	if ( !$user_id || !$referral_id ) {
-		$content = NULL;
-	} else {
+	$content = NULL;
+	if ($user_id && $referral_id ) {
 		$url = (!$page) ? get_site_url() : get_site_url().$page;
 		$refLink = esc_url(add_query_arg( 'raf', $referral_id, $url )); 
 		$content = "<a href='".$refLink."'>".$refLink."</a>";
@@ -250,20 +247,22 @@ function akimbo_crm_raf_referral_code($atts){//$page = null
 	global $wpdb;
 	$user_id = get_current_user_id();
 	$user = new Akimbo_Crm_User(get_current_user_id());
-	if(isset($_GET['message']) && !isset($_GET['student_id'])){echo "Success, student updated!<br/>";}
+	if(isset($_GET['message'])){
+		$message = ($_GET['message'] == "success") ? "Success, student updated!" : "Sorry, that didn't work!";
+		echo $message."<hr>";
+	}
 	
-	if(isset($_GET['student_id'])){
-		$student_id = $_GET['student_id'];
+	if(isset($_GET['student'])){
+		$student_id = $_GET['student'];
 		if(!is_numeric($student_id)){//=new
 			echo "<h2>Add Student</h2>";
-			update_student_details_form(NULL, "/account/students/");
+			update_student_details_form(NULL, "students");
 		} else {
 			$student = new Akimbo_Crm_Student($student_id);
-			if(isset($_GET['message'])){echo "Success, ".$student->first_name()." has been updated!<br/><hr><br/>";}
 			echo "<h2>".$student->full_name()."</h2>";
 			$student->display_mailchimp();
 			echo "<hr>";
-			update_student_details_form($student_id, $student->student_account_link(NULL));		
+			update_student_details_form($student_id, "students");		
 		}
 			echo '<br/><hr>';
 	}

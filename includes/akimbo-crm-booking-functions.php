@@ -113,6 +113,7 @@ function crm_add_booking_order_line_item_meta($item, $cart_item_key, $values, $o
 		$birthday_name = $values['birthday_name'];
 	}
 	if(array_key_exists('book_date', $values)){
+		$item->add_meta_data('_book_date', $values['book_date']);
 		crm_create_booking($item, $values['book_date']);
 	}	
 }
@@ -326,9 +327,11 @@ function crm_delete_booking_process($book_date = NULL, $order_id = 0, $item_id =
 	crm_reset_availability($book_date);
 	$result = ($item_id != NULL) ? wc_delete_order_item_meta( $item_id, "_book_date") : false;
 	//Delete from Class List table
-	$table = $wpdb->prefix."crm_class_list";
-	$where = array("class_id" => $order_id,);//"session_date" => $book_date,
-	$result = $wpdb->delete( $table, $where);
+	if($order_id >= 10){//temporary workaround until delete function fixed
+		$table = $wpdb->prefix."crm_class_list";
+		$where = array("class_id" => $order_id,);//"session_date" => $book_date,"age_slug" => "private"
+		$result = $wpdb->delete( $table, $where);
+	}
 	return $result;
 }
 
@@ -348,13 +351,15 @@ function crm_reset_availability($book_date, $available = 1){
  */
 function crm_delete_booking_restore_availability($post_id){
 	global $wpdb;
-	$order = wc_get_order($post_id);
-	$items = $order->get_items();
-	foreach ( $items as $item_id => $item_data ) {
-		if($item_data['book_date']){
-			$url = get_site_url()."/wp-admin/edit.php?post_type=shop_order";
-			$order_id = $wpdb->get_var("SELECT class_id FROM {$wpdb->prefix}crm_class_list WHERE class_id = $post_id ");
-			crm_delete_booking_action($item_data['book_date'], $order_id, $item_id, $url);
+	if(get_post_type($order_id) == "shop_order"){
+		$order = wc_get_order($post_id);
+		$items = $order->get_items();
+		foreach ( $items as $item_id => $item_data ) {
+			if($item_data['book_date']){
+				$url = get_site_url()."/wp-admin/edit.php?post_type=shop_order";
+				$order_id = $wpdb->get_var("SELECT class_id FROM {$wpdb->prefix}crm_class_list WHERE class_id = $post_id ");
+				crm_delete_booking_action($item_data['book_date'], $order_id, $item_id, $url);
+			}
 		}
 	}
 }
@@ -437,7 +442,7 @@ function akimbo_crm_manage_booking_schedules(){
 		echo crm_available_booking_dates_dropdown();
 	}
 	echo "<hr>";
-	crm_roster_edit_button();
+	//crm_roster_edit_button();
 }
 
 function crm_add_booking_availability(){

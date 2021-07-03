@@ -62,6 +62,7 @@ function akimbo_crm_manage_classes_details($class_id){
 		if($class_type == "enrolment"){
 			do_action('manage_classes_swap_student', akimbo_crm_swap_student_button($class, $student_info['student_list'])); 
 			echo apply_filters('manage_classes_matched_orders', akimbo_crm_display_matched_orders($class));
+			echo akimbo_crm_enrol_all_classes($class_id, $class->get_date('Y-m-d'));
 		}
 		$unpaid_students = $student_info['unpaid_students'];
 		if(isset($unpaid_students)){
@@ -107,7 +108,7 @@ function display_attendance_table($class){
 			$i++;//increment here so it gets correct number of students
 			echo "<tr><td>".$student->student_id.". ".$student->student_admin_link($student->full_name())."</td><td>";
 			if($student->ord_id >= 1){ 
-				crm_order_info_from_item_id($student->ord_id, "url", $student->ord_id);
+				echo crm_order_info_from_item_id($student->ord_id, "url", $student->ord_id);
 			}else{echo "UNPAID";}
 			?></td><td><input type="checkbox" name="student_<?php echo $i?>" value="1" <?php if($student->attended >= 1){echo "checked='checked'";}?> 
 			>Student <?php echo $i."</td></tr>";
@@ -144,7 +145,7 @@ function akimbo_crm_display_matched_orders($class){
 		foreach($matched_orders as $order){
 			echo "<tr><td>".$order['title'].$order['details']."</td><td>";
 			echo "Student: ";
-			akimbo_crm_match_enrolment($user_id, $class_id, $item_id);
+			akimbo_crm_match_enrolment($order['user_id'], $class->get_id(), $order['item_id']);
 			echo "</td></tr>";
 		}
 		echo "</table>";
@@ -174,7 +175,7 @@ function display_related_classes($class){
  * 
  * Class Actions
  * 
- ***********************************************************************************************/
+ **********************************************************************************************/
 
 add_action( 'admin_post_mark_attendance', 'mark_attendance' );
 
@@ -182,11 +183,12 @@ function mark_attendance(){
 	global $wpdb;
 	$table = $wpdb->prefix.'crm_attendance';
 	$count = $_POST['count'];
+	$result = true;
 	for($i=0; $i<=$count; $i++){
 		$value = "student_".$i;
 		$id_value = "student_".$i."_id";
-		$where = array('student_id' => $_POST[$id_value],'class_list_id' => $_POST['class'],);
 		if(isset($_POST[$id_value])){
+			$where = array('student_id' => $_POST[$id_value],'class_list_id' => $_POST['class'],);
 			$data = (isset($_POST[$value])) ? array('attended' => 1,) : array('attended' => 0,);
 			$result = $wpdb->update( $table, $data, $where); 
 		}
@@ -320,7 +322,7 @@ function akimbo_crm_match_enrolment($user_id, $class_id, $item_id){
 	<!--Add new student button-->
 	<form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
 	<input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
-	<input type="hidden" name="class" value="<?php echo $this->class_id;?>">
+	<input type="hidden" name="class" value="<?php echo $class_id;?>">
 	<input type="hidden" name="action" value="crm_add_student">
 	or <input type="text" name="student" placeholder="Student first name"> <input type='submit' value='Add New'>
 	</form><?php
@@ -328,12 +330,26 @@ function akimbo_crm_match_enrolment($user_id, $class_id, $item_id){
 
 add_action( 'admin_post_kids_enrolment_confirmation', 'kids_class_enrolment' );
 
+/**
+ * Match Enrolment Orders
+ */
+function akimbo_crm_enrol_all_classes($class_id, $class_date){
+	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
+	echo crm_student_dropdown("student_id");
+	?>
+	<input type="hidden" name="start_date" value="<?php echo $class_date; ?>">
+	<input type="hidden" name="class_id" value="<?php echo $class_id;?>">
+	<input type="hidden" name="action" value="kids_enrolment_confirmation">
+	<input type='submit' value='Term Enrolment'><i>beta function</i> </form><?php
+}
+
 function kids_class_enrolment(){//matched orders, where item_id is given	
 	global $wpdb;
 	
 	//Get Student Info
 	$student_id = $_POST['student_id'];
 	$student = new Akimbo_Crm_Student($student_id);
+	$user_id = (isset($_POST['user_id'])) ? $_POST['user_id'] : $student->get_user_id();
 	
 	//Get Class info
 	$class = new Akimbo_Crm_Class($_POST['class_id']);
@@ -342,16 +358,26 @@ function kids_class_enrolment(){//matched orders, where item_id is given
 	$classes = ($_POST['start_date'])? $class->enrolment_related_classes('all', $_POST['start_date']) : $class->enrolment_related_classes('all');
 	
 	//Get pass info
-	$item_id = $_POST['item_id'];
-	$item_info = crm_get_item_available_passes($item_id);
-	$remaining = $item_info['remaining'];
+	
+	if(isset($_POST['item_id'])){
+		$item_id = $_POST['item_id'];
+		$item_info = crm_get_item_available_passes($item_id);
+		$remaining = $item_info['remaining'];
+	}else{
+		$user = new Akimbo_Crm_User($user_id);
+		$current_order = $user->get_available_user_orders($student->get_age(), true);//use true to get single order
+		$remaining = $current_order['remaining'];
+		$item_id = $current_order['item_id'];
+	}
+	
+	
 
 	//Update Attendance table
 	$table = $wpdb->prefix.'crm_attendance';
 	foreach($classes as $enrol_class){
 		$data = array(
 		'class_list_id' => $enrol_class->class_id,
-		'user_id' => $_POST['user_id'],
+		'user_id' => $user_id,
 		'student_id' => $student_id,
 		'student_name' => $student->full_name(),
 		);
@@ -369,7 +395,7 @@ function kids_class_enrolment(){//matched orders, where item_id is given
 			$x++;
 			
 		}else{
-			$data['ord_id'] = $_POST['item_id'];
+			$data['ord_id'] = $item_id;
 			$remaining = $remaining-1;
 			$result = $wpdb->insert($table, $data);
 			$x++;
@@ -393,14 +419,13 @@ function kids_class_enrolment(){//matched orders, where item_id is given
  * User dashboard class enrol button. Front end, only shown to users with active passes
  */
 function crm_casual_enrol_button($student, $class, $order, $url = NULL, $age = NULL){//Front end
-	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post">
-	<input type="hidden" name="order" value="<?php echo $order; ?>">
-	<input type="hidden" name="student" value="<?php echo $student; ?>">
-	<input type="hidden" name="class" value="<?php echo $class; ?>">
-	<input type="hidden" name="age" value="<?php echo $age; ?>">
-	<?php // if($url != NULL){ <input type="hidden" name="url" value="<?php echo $url; "> <?php } ?>
-	<input type="hidden" name="action" value="crm_enrol_student">
-	<input type="submit" value="Sign Up"></form><?php 
+	$button = "<form action='".esc_url( admin_url('admin-post.php') )."' method='post'>";
+	$button .= "<input type='hidden' name='order' value='".$order."'>";
+	$button .= "<input type='hidden' name='student' value='".$student."'>";
+	$button .= "<input type='hidden' name='class' value='".$class."'>";
+	$button .= "<input type='hidden' name='action' value='crm_enrol_student'>";
+	$button .= "<input type='submit' value='Sign Up'></form>";
+	return $button;
 }
 
 function akimbo_crm_admin_manual_enrolment_button($class_id, $student_list, $class_type = "casual", $age = NULL){
@@ -412,8 +437,8 @@ function akimbo_crm_admin_manual_enrolment_button($class_id, $student_list, $cla
 	<input type="hidden" name="age" value="<?php echo $age;?>">
 	<input type="hidden" name="url" value="<?php echo akimbo_crm_class_permalink($class_id);?>">
 	<input type="hidden" name="action" value="crm_enrol_student"><?php
-	echo "<input type='submit' value='Enrol'>";
-	akimbo_crm_permalinks("students", "display", "Add new student", array("student" => "new", "class" => $class_id));
+	echo "<input type='submit' value='Enrol'> ";
+	echo akimbo_crm_permalinks("students", "link", "Add new", array("student" => "new", "class" => $class_id));
 	echo "</form>";
 }
 
@@ -443,7 +468,7 @@ function akimbo_crm_enrol_student_process() {//values set on crm_dashboard.php, 
 			$item_id = $current_order['item_id'];
 		}		
 	}
-
+	
 	$table = $wpdb->prefix.'crm_attendance';
 	$data = array(
 		'class_list_id' => $_POST['class'],
@@ -461,7 +486,7 @@ function akimbo_crm_enrol_student_process() {//values set on crm_dashboard.php, 
 	if( FALSE === $result ) {
 	} else {
 		if($item_id >= 1){//update item meta info
-			$update = crm_calculate_passes_used($item_id);
+			admin_assign_order_id($item_id);
 		}
 		
 		//update Mailchimp most recent class// Switch over to do_action
@@ -472,7 +497,7 @@ function akimbo_crm_enrol_student_process() {//values set on crm_dashboard.php, 
 		akimbo_crm_mailchimp_update_merge_field("ENDDATE", $value, $email);
 	}
 
-	$url = (isset($_POST['url'])) ? $_POST['url'] : get_permalink( wc_get_page_id( 'myaccount' ) );	
+	$url = (isset($_POST['url'])) ? $_POST['url'] : get_permalink( wc_get_page_id( 'myaccount' ) )."?";	
 	$url .= "&message=".$message;
 	wp_redirect( $url ); 
 	exit;	
@@ -483,24 +508,42 @@ function akimbo_crm_enrol_student_process() {//values set on crm_dashboard.php, 
  * Unenrol single student or choose from array of students.
  * Combines crm_student_unenrol_button & crm_admin_unenrolment_button
  */
-function akimbo_crm_unenrol_student_form($att_id, $class_id = NULL, $url){
+function akimbo_crm_unenrol_student_form($att_id, $class_id = NULL, $url = NULL){
 	?><form action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" method="post"><?php 
 		if(is_array($att_id)){
 			echo "<select name= 'att_id'><option value=''>Select student</option>";
-			foreach ($student_list as $student){ 
+			foreach ($att_id as $student){ 
 				echo "<option value='".$student->att_id."'>".$student->full_name()."</option>";
 			} 
 			echo "</select>";
 		}else{
 			echo "<input type='hidden' name='att_id' value='".$att_id."'>"; 
 		}
-		if(isset($class_id)){
-			echo "<input type='hidden' name='class_id' value='".$class_id."'>"; 
-		}
+		if($url != NULL){echo "<input type='hidden' name='url' value='".$url."'>";}
+		if($class_id != NULL){echo "<input type='hidden' name='class_id' value='".$class_id."'>";}
 		?>
 		<input type="hidden" name="action" value="unenrol_button">
 		<input type="submit" name="submit" value="Unenrol">
 	</form> <?php
+}
+
+function akimbo_crm_unenrol_student_button($att_id, $item_id, $class_id = NULL, $url = NULL){
+	$button = "<form action='".esc_url( admin_url('admin-post.php') )."' method='post'>";
+	if(is_array($att_id)){
+		$button .= "<select name= 'att_id'><option value=''>Select student</option>";
+		foreach ($att_id as $student){ 
+			$button .= "<option value='".$student->att_id."'>".$student->full_name()."</option>";
+		} 
+		$button .= "</select>";
+	}else{
+		$button .= "<input type='hidden' name='att_id' value='".$att_id."'>"; 
+	}
+	if($item_id != NULL){$button .= "<input type='hidden' name='item_id' value='".$item_id."'>";}
+	if($url != NULL){$button .= "<input type='hidden' name='url' value='".$url."'>";}
+	if($class_id != NULL){$button .= "<input type='hidden' name='class_id' value='".$class_id."'>";}
+	$button .= 	"<input type='hidden' name='action' value='unenrol_button'>";
+	$button .= "<input type='submit' name='submit' value='Unenrol'></form>";
+	return $button;
 }
 
 add_action( 'admin_post_unenrol_button', 'crm_unenrolment_process' );
@@ -508,8 +551,13 @@ add_action( 'admin_post_unenrol_button', 'crm_unenrolment_process' );
 function crm_unenrolment_process(){//early cancel
 	global $wpdb;
 	//Disassociate pass
-	if(!isset($item_id) || $item_id == 999999){//don't do anything else for unpaid orders	
-	} else {
+	$item_id = $_POST['item_id'];
+	if($item_id == 999999){//don't do anything else for unpaid orders	
+	}elseif(!isset($item_id)){
+		$att_id = $_POST['att_id'];
+		$item_id = $wpdb->get_var("SELECT ord_id FROM {$wpdb->prefix}crm_attendance WHERE attendance_id = '$att_id'"); 
+	}
+	if(isset($item_id) && $item_id != 999999){
 		admin_assign_order_id($item_id, 0, NULL, true);
 	}
 
@@ -525,7 +573,7 @@ function crm_unenrolment_process(){//early cancel
 	}elseif(isset($_POST['class_id'])){
 		$url = akimbo_crm_class_permalink($_POST['class_id']);
 	}else {
-		$url = get_permalink( wc_get_page_id( 'myaccount' ) );
+		$url = get_permalink( wc_get_page_id( 'myaccount' ) )."?";
 	}
 	$message = ($result) ? "success" : "failure";
 	$url .= "&message=".$message;

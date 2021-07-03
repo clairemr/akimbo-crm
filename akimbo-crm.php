@@ -126,12 +126,13 @@ function akimbo_crm_create_db_tables(){
 		$table_name = $wpdb->prefix . "crm_students"; 
 		$sql = "CREATE TABLE $table_name (
 			student_id int(11) NOT NULL AUTO_INCREMENT,
+			user_id int(11),
 			student_rel tinytext,
 			student_firstname tinytext NOT NULL,
 			student_lastname tinytext,
-			student_dob datetime DEFAULT '0000-00-00 00:00:00',
-			student_startdate datetime DEFAULT '0000-00-00 00:00:00',
-			student_waiver datetime DEFAULT '0000-00-00 00:00:00',
+			student_dob datetime,
+			student_startdate datetime,
+			student_waiver datetime,
 			student_notes text,
 			marketing tinytext,
 			PRIMARY KEY  (student_id)

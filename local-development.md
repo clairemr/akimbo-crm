@@ -6,11 +6,5 @@
     - default database connection settings are username = 'root', password = '', host = localhost
     - you will need to create the wordpress database at localhost/phpmyadmin and enter the name in the installation window
 4. Run the Wordpress installer
-5. Set define( 'WP_DEBUG', true ); in wp-config.php
+5. Set define( 'WP_DEBUG', true ); in wp-config.php and add define( 'WP_DEBUG_LOG', true );
 6. Install woocommerce & Akimbo-CRM, either through the UI or by moving to plugin folder
-
-
-#### To Do:
-- Create installer: install db tables and go through any required options
-- How To page/demo site
-- Fork repo and work on the installation there, in order to re-install plugin under a different name

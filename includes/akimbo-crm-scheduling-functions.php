@@ -97,7 +97,7 @@ function crm_confirm_class_schedule($class_id, $title = NULL, $product_id = NULL
 		}else{
 			echo "<br/><b>Class details not set: </b>";
 		}
-		crm_admin_order_link($product_id, "Edit product details");
+		echo crm_admin_order_link($product_id, "Edit product details");
 		echo "<br/><hr><br/>";
 	}
 }
@@ -126,16 +126,16 @@ function product_details_call( $post ) {
 	$details = get_post_meta(get_the_ID());
 	//Enable Akimbo CRM
 	echo "<input type='checkbox' name='is_bookable' id='is_bookable'";
-	if(isset($details['is_bookable'])){echo "checked";}
+	if(isset($details['is_bookable']) && $details['is_bookable'][0] == "on"){echo "checked";}
 	echo " >Enable Akimbo CRM. ";//use for all products in CRM
-	if(isset($details['is_bookable'])){
+	if(isset($details['is_bookable'])  && $details['is_bookable'][0] == "on"){
 		// Casual Class product
 		echo "<br/><input type='checkbox' name='is_casual' id='is_casual'";
-		if(isset($details['is_casual'])){echo "checked";}
+		if(isset($details['is_casual'])  && $details['is_casual'][0] == "on"){echo "checked";}
 		echo " >Casual Class. ";
 		// Private booking
 		echo "<br/><input type='checkbox' name='is_booking' id='is_booking'";
-		if(isset($details['is_booking'])){echo "checked";}
+		if(isset($details['is_booking'])  && $details['is_booking'][0] == "on"){echo "checked";}
 		echo " >Private booking. ";
 
 		//Get variation information
@@ -164,7 +164,7 @@ function product_details_call( $post ) {
 		/**
 		 * Classes
 		 */
-		if(!isset($details['is_booking'])){
+		if(!isset($details['is_booking']) || $details['is_booking'][0] == "off"){
 			$duration = (isset($details['duration'])) ? $details['duration'][0] : 0;
 			echo "<br/>Class length: <input type='number' value='".$duration."' name='duration' id='duration'> minutes";
 			$trial_product = (isset($details['trial_product'])) ? $details['trial_product'][0] : 0;
@@ -172,7 +172,7 @@ function product_details_call( $post ) {
 			if($variations != NULL){//add these details in separate function
 				echo "<br/><i>Use the variations tab below to add class times and trainers.</i>";
 			}else{
-				if(!isset($details['is_casual'])){//and post type != variable product
+				if(!isset($details['is_casual'])  || $details['is_casual'][0] == "off"){//and post type != variable product
 					//<input type="time" value="13:00" step="900">
 					$start_time = (isset($details['start_time'])) ? $details['start_time'][0] : 0;
 					echo "<br/>Start Time: <input type='time' value='".$start_time."' name='start_time' id='start_time'>";

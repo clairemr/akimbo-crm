@@ -30,10 +30,11 @@ function akimbo_crm_display_user_orders($user_id, $age = NULL, $name = "item_id"
 	}else{
 		echo "<select name='".$name."'>";
 		foreach($orders as $order){
-			echo "<option value='".$order['item_id']."'>".$order['name'].": ";
+			echo "<option value='".$order['item_id']."'>".$order['order_id']." ".$order['name'].": ";
 			echo $order['remaining']."/".$order['passes']." ".$order['pass_type']." remaining"."</option>";
 		}
 		echo "</select>";
+		//var_dump($order['item']);
 	}
 }
 
@@ -41,9 +42,10 @@ function akimbo_crm_display_user_order_account($user, $age = NULL){
 	$order = $user->get_available_user_orders($age, true);
 	if(isset($order)){
 		if($order['subscription'] == true){echo "Membership active: ";}
-		if($order['remaining'] >= 0){
-			echo "You have ".$order['remaining']."/".$order['passes']." ".$age." classes remaining, ";
-			echo "expiring on ".date(" l jS F Y", strtotime($order['expiry'])).". ".$order['url'];
+		if($order['remaining'] >= 1){
+			echo "You have ".$order['remaining']."/".$order['passes']." ".$age." classes remaining";
+			echo ", expiring on ".date(" l jS F Y", strtotime($order['expiry'])); 
+			echo ". ".$order['url'];
 		}
 		$product_id = (isset($order['product_id'])) ? $order['product_id'] : 0;
 		$item_id = ($order['remaining'] >= 0) ? $order['item_id'] : 0;

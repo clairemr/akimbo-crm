@@ -59,6 +59,12 @@ class Akimbo_Crm_Student{
 		$age = ($this->age != NULL) ? $this->age : "adult";
 		return $this->age;
 	}
+	
+	function get_dob($format = NULL){//'Y-m-d'
+		$dob = $this->student_info->student_dob;
+		$dob = ($format == NULL) ? $dob : date($format, strtotime($dob));
+		return $dob;
+	}
 
 	function get_id(){
 		return $this->student_id;
@@ -68,16 +74,25 @@ class Akimbo_Crm_Student{
 		return $this->student_info->user_id;
 	}
 
-	function get_classes($format = "array"){
+	function get_classes($format = "array", $date = 'all'){
+		$classes = array();
+		$today = current_time('Y-m-d');
 		if($format == "object"){
 			foreach($this->get_classes() as $student_class){
-				$id = $student_class->class_list_id;
-				$classes[] = array($student_class, new Akimbo_Crm_Class($id));
+				if($date == "future" && $student_class->session_date <= $today){
+				}else{
+					$id = $student_class->class_list_id;
+					$classes[] = array($student_class, new Akimbo_Crm_Class($id));
+				}
 			}
 		}else{
 			$classes = $this->classes;
 		}
 		return $classes;
+	}
+
+	function get_class_count(){
+		return count($this->get_classes);
 	}
 
 	function get_upcoming_classes(){
@@ -175,30 +190,34 @@ class Akimbo_Crm_Student{
 	function update_mailchimp(){
 		$email = $this->contact_email();
 		$mailchimp = akimbo_crm_mailchimp_get_all_merge_fields($email);
-		if($this->first_class() != NULL){
-			if($mailchimp['ENDDATE'] != $this->last_class()->session_date){//update mailchimp, CRM should always have the most recent data
-				akimbo_crm_mailchimp_update_merge_field("ENDDATE", $this->last_class()->session_date, $email);
-			}		
-			if ($mailchimp['STARTDATE'] > 0000-00-00 && $mailchimp['STARTDATE'] < $this->first_class()->session_date){ //echo "don't update"; //Mailchimp has the oldest date
-			} elseif($mailchimp['STARTDATE'] == $this->first_class()->session_date){ //echo "dates are equal";
-			} else{//echo "do update";
-				akimbo_crm_mailchimp_update_merge_field("STARTDATE", $this->first_class()->session_date, $email);
+		if(is_array($mailchimp)){
+			if($this->first_class() != NULL){
+				if($mailchimp['ENDDATE'] != $this->last_class()->session_date){//update mailchimp, CRM should always have the most recent data
+					akimbo_crm_mailchimp_update_merge_field("ENDDATE", $this->last_class()->session_date, $email);
+				}		
+				if ($mailchimp['STARTDATE'] > 0000-00-00 && $mailchimp['STARTDATE'] < $this->first_class()->session_date){ //echo "don't update"; //Mailchimp has the oldest date
+				} elseif($mailchimp['STARTDATE'] == $this->first_class()->session_date){ //echo "dates are equal";
+				} else{//echo "do update";
+					akimbo_crm_mailchimp_update_merge_field("STARTDATE", $this->first_class()->session_date, $email);
+				}
 			}
-		}
-		
-		if(!is_array($mailchimp)){
-			$mailchimp = array(
-				'MCstart' => 0,
-				'MCend' => 0,
-				'subscribed' => false,
-			);
+			
+			if(!is_array($mailchimp)){
+				$mailchimp = array(
+					'MCstart' => 0,
+					'MCend' => 0,
+					'subscribed' => false,
+				);
+			}else{
+				$mailchimp = array(
+					'MCstart' => $mailchimp['STARTDATE'],
+					'MCend' => $mailchimp['ENDDATE'],
+					'subscribed' => true,
+					'email' => $email,
+				);
+			}
 		}else{
-			$mailchimp = array(
-				'MCstart' => $mailchimp['STARTDATE'],
-				'MCend' => $mailchimp['ENDDATE'],
-				'subscribed' => true,
-				'email' => $email,
-			);
+			$mailchimp = false;
 		}
 		
 		return $mailchimp;
@@ -207,10 +226,9 @@ class Akimbo_Crm_Student{
 	function display_mailchimp($admin = false){
 		$mailchimp = $this->update_mailchimp();
 		if($admin == true){
-			echo "<h2>Mailchimp integration: <small>";
-			$message = ($mailchimp['subscribed'] == false) ? "User not subscribed</small></h2>" : $mailchimp['email']."</small></h2>";
-			echo $message;
-		}
+			$message = ($mailchimp != false) ? "Mailchimp integration: <small>".$mailchimp['email']."</small>" : '<small>User not subscribed to Mailchimp</small>';
+			echo "<h2>".$message."</h2>";
+		}		
 		
 		if(isset($this->first_class()->session_date)){
 			$name = ($this->get_student_info()->student_rel == "user" && $admin == false) ? "Your" : $this->first_name()."'s";

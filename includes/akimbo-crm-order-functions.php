@@ -14,7 +14,7 @@ add_filter('woocommerce_thankyou_order_received_text', 'order_received_text');
 
 //Add user students link to admin order page
 function crm_admin_order_display_student_list ($order){
-	akimbo_crm_permalinks("students", "display", "View User Students", array("user" => $order->get_user_id(), ));
+	echo akimbo_crm_permalinks("students", "link", "View User Students", array("user" => $order->get_user_id(), ));
 }
 
 add_action('woocommerce_admin_order_data_after_shipping_address', 'crm_admin_order_display_student_list', 10, 1);//add user students link
@@ -90,7 +90,13 @@ function cak_crm_admin_order_item_values( $product, $item, $item_id ) {
 					$semester = ucwords(wc_get_order_item_meta($item_id, "semester"));
 					if($semester == NULL){$semester = ucwords(wc_get_order_item_meta($item_id, "pa_semester"));}//some use pa_semester
 			        if($semester == NULL){// || !isset($weeks)
-			        	$values .= "Please update semester";
+					if($weeks == NULL){
+						$values .= "1. ";
+						wc_update_order_item_meta($item_id, "weeks", 1);
+					}else{
+						$values .= $weeks.". ";
+					}
+					$text = "Reset";
 			        }else{
 			        	$classes = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_class_list WHERE class_id = '$class_id' AND semester_slug = '$semester'");
 			        	$values .= $weeks."/".$classes.". ";
@@ -155,7 +161,7 @@ function crm_update_weeks_or_sessions($item_id){
 	<option	value="weeks">Weeks</option><option	value="weeks_used">Weeks Used</option></select>
 	<input type="hidden" name="item_id" value=" <?php echo $_GET['item_id']; ?>">
 	<input type="hidden" name="action" value="crm_update_order_meta">
-	</td><td><input type='submit' value='Update'>
+	</td><td><input type='submit' value='Update'><input type='submit' name='submit' value='Delete'>
 	</form></td></tr></table><br/><hr><br/><?php
 }
 
@@ -178,7 +184,7 @@ function crm_order_info_from_item_id($item_id, $format = "object", $text = NULL)
 		if($format == "object"){
 			$result = wc_get_order( $order_id );
 		}elseif($format == "url"){
-			$result = crm_admin_order_link($order_id, NULL, true);
+			$result = ($text == NULL) ? crm_admin_order_link($order_id) : crm_admin_order_link($order_id, $text);
 		}else{
 			$result = $order_id;
 		}
@@ -186,14 +192,10 @@ function crm_order_info_from_item_id($item_id, $format = "object", $text = NULL)
 	return $result;
 }
 
-function crm_admin_order_link($order_id, $text = NULL, $return = false){
+function crm_admin_order_link($order_id, $text = NULL){
 	$url = get_site_url()."/wp-admin/post.php?post=".$order_id."&action=edit";
 	$result = ($text != NULL) ? "<a href='".$url."'>".$text."</a>" : $url;
-	if($return == false){
-		echo $result;
-	}else{
-		return $result;
-	}
+	return $result;
 }
 
 /**
@@ -204,7 +206,7 @@ function crm_product_meta_type($product_id){
 	$is_booking = get_post_meta($product_id, 'is_booking', true );
 	$is_casual = get_post_meta($product_id, 'is_casual', true );
 	$is_bookable = get_post_meta($product_id, 'is_bookable', true );
-	if($is_booking){
+	if($is_booking && !$is_casual){
 		$result = "booking";
 	}elseif($is_casual){
 		$result = "casual";
@@ -291,7 +293,10 @@ function crm_return_orders_by_meta($key, $value, $date = NULL){
 		$items = $order->get_items();
 		foreach ( $items as $item) {
 			$metadata = $item->get_meta($key, true);
-			if(is_array($value)){//e.g. array of product ids
+			if($metadata){
+				$matched_orders[] = $order;
+			}
+			/*if(is_array($value)){//e.g. array of product ids
 				if($metadata && in_array($metadata, $value)){
 					$matched_orders[] = $order;
 				}
@@ -305,7 +310,7 @@ function crm_return_orders_by_meta($key, $value, $date = NULL){
 				}elseif($metadata && $metadata == $value){//if has meta key, and value matches 
 					$matched_orders[] = $order;
 				}
-			}
+			}*/
 			
 		}
 	}
@@ -348,14 +353,13 @@ function crm_get_or_set_expiry($order, $item_id){
 /**
  * Check passes used against crm_class_list
  */
-function crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = "weeks"){
+function crm_calculate_passes_used($item_id, $compare = NULL, $pass_type = NULL){
 	global $wpdb;
 	$passes = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}crm_attendance WHERE ord_id = '$item_id'");
-	if($compare != NULL){
-		if($compare != $passes){
-			$meta_key = $pass_type."_used";
-			wc_update_order_item_meta($item_id, $meta_key, $passes);
-		}
+	$pass_type = ($pass_type == NULL) ? "weeks" : "sessions";
+	if($compare != $passes){
+		$meta_key = $pass_type."_used";
+		wc_update_order_item_meta($item_id, $meta_key, $passes);
 	}
 	return $passes;
 }
@@ -372,68 +376,61 @@ function crm_get_item_available_passes($item_id, $order = NULL){
 	if($order == NULL){
 		$order = crm_order_info_from_item_id($item_id);
 	}
-	$order_id = $order->get_id();
-	$item_info['order_id'] = $order->get_id();
-	$item_info['user_id'] = $order->get_user_id();
-	$statuses = ['completed','processing'];
-	if(in_array($order->get_status(), $statuses)  && get_post_type($order_id) != "shop_subscription"){//don't show unpaid orders or parent subscriptions
-		/**
-		 * Check item availability and set info if available
-		 */
-		
-		$item_info['available'] = false;
-		$item_data = new WC_Order_Item_Product($item_id);
-		if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
-			$passes = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
-			$pass_type = "sessions";
-		}elseif(isset($item_data['weeks'])){
-			$passes = $item_data['weeks'];
-			$pass_type = "weeks";
-		}
-		if(isset($passes)){
-			$meta_key = $pass_type."_used";
-			$used = (isset($item_data[$meta_key])) ? $item_data[$meta_key] : 0;
-			$remaining = $passes - $used;
-			$item_info['test'] = $remaining;
-			$expiry = crm_get_or_set_expiry($order, $item_id);
-			$available = ($remaining >= 1 && $expiry >= current_time('Y-m-d-h:ia')) ? true : false;
-			if($available){
-				/**
-				 * Check pass quantities are accurate
-				 */
-				$item_info['used'] = $used;
-				$crm_passes_used = crm_calculate_passes_used($item_id);
-				/*if($crm_passes_used != $item_info['used']){
-					wc_update_order_item_meta($item_id, $meta_key, $crm_passes_used);
-					$item_info['used'] = $crm_passes_used;
-				}*/ //added to calculate passes function
-				
-				/**
-				 * Return available order information
-				 */
-				$item_info['available'] = true;
-				$item_info['expiry'] = $expiry;
-				$item_info['item_id'] = $item_id;
-				$item_info['name'] = $item_data['name'];
-				$item_info['order_id'] = $order_id;
-				$item_info['qty'] = $item_data->get_quantity(); // ? $item_data['_qty'] : 1;
-				$item_info['passes'] = $passes*$item_info['qty'];
-				$item_info['pass_type'] = $pass_type;
-				$item_info['product_id'] = $item_data['product_id'];
-				$item_info['remaining'] = $item_info['passes'] - $item_info['used'];
-				$item_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$order_id."/'>View Order</a>";	
-				$item_info['type'] = (get_post_type($order_id) == "renewal") ? "subscription" : "order";
-				$item_info['subscription'] = wcs_order_contains_subscription( $order, "renewal" );
-				
-				//add in subscription function to avoid having to pass subscription object
-				/*$subscription_info['parent'] = $parent;
-				$subscription_info['active'] = true;
-				$subscription_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-subscription/".$subscription_info['id']."/'>View Subscription</a>";
-				$subscription_info['next'] = $subscription->get_date( 'next_payment' );*/
+	$item_info['available'] = false;
+	if($order){
+		$order_id = $order->get_id();
+		$item_info['order_id'] = $order->get_id();
+		$item_info['user_id'] = $order->get_user_id();
+		$statuses = ['completed','processing'];
+		if(in_array($order->get_status(), $statuses)  && get_post_type($order_id) != "shop_subscription"){//don't show unpaid orders or parent subscriptions
+			/**
+			 * Check item availability and set info if available
+			 */
+			
+			$item_info['available'] = false;
+			$item_data = new WC_Order_Item_Product($item_id);
+			if(isset($item_data['pa_sessions']) || isset($item_data['sessions'])){
+				$passes = (isset($item_data['sessions'])) ? $item_data['sessions'] : $item_data['pa_sessions'];
+				$pass_type = "sessions";
+			}elseif(isset($item_data['weeks'])){
+				$passes = $item_data['weeks'];
+				$pass_type = "weeks";
 			}
-		}else{//not a bookable item
+			if(isset($passes)){
+				$meta_key = $pass_type."_used";
+				$used = (isset($item_data[$meta_key])) ? $item_data[$meta_key] : 0;
+				$item_info['used'] = crm_calculate_passes_used($item_id, $used, $pass_type);
+				$item_info['qty'] = $item_data->get_quantity(); // ? $item_data['_qty'];
+				$item_info['passes'] = $passes*$item_info['qty'];
+				$item_info['remaining'] = $item_info['passes'] - $item_info['used'];
+				$item_info['expiry'] = crm_get_or_set_expiry($order, $item_id);
+				$available = ($item_info['remaining'] >= 1 && $item_info['expiry'] >= current_time('Y-m-d-h:ia')) ? true : false;
+				
+				if($available){		
+					/**
+					 * Return available order information
+					 */
+					$item_info['available'] = true;
+					$item_info['item_id'] = $item_id;
+					$item_info['name'] = $item_data['name'];
+					$item_info['order_id'] = $order_id;
+					$item_info['pass_type'] = $pass_type;
+					$item_info['product_id'] = $item_data['product_id'];
+					$item_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-order/".$order_id."/'>View Order</a>";	
+					$item_info['type'] = (get_post_type($order_id) == "renewal") ? "subscription" : "order";
+					$item_info['subscription'] = wcs_order_contains_subscription( $order, "renewal" );
+					
+					//add in subscription function to avoid having to pass subscription object
+					/*$subscription_info['parent'] = $parent;
+					$subscription_info['active'] = true;
+					$subscription_info['url'] = "<a href='".get_permalink( get_option('woocommerce_myaccount_page_id') )."view-subscription/".$subscription_info['id']."/'>View Subscription</a>";
+					$subscription_info['next'] = $subscription->get_date( 'next_payment' );*/
+				}
+			}else{//not a bookable item
+			}
 		}
 	}
+	
 	return $item_info;
 }
 
@@ -443,7 +440,12 @@ function crm_update_order_meta (){
 	$item_id = $_POST['item_id'];
 	$meta_key = $_POST['meta_key'];
 	$meta_data = $_POST['meta_data'];
-	$result = wc_update_order_item_meta($item_id, $meta_key, $meta_data);
+	if($_POST['submit'] == "Delete"){
+		$result = wc_delete_order_item_meta($item_id, $meta_key);
+	}else{
+		$result = wc_update_order_item_meta($item_id, $meta_key, $meta_data);
+	}
+	
 	if(!$result){
 		wc_delete_order_item_meta( $item_id, $meta_key ); //update wasn't working if data existed, works if meta_key is deleted 1st
 		$result = wc_update_order_item_meta($item_id, $meta_key, $meta_data);
@@ -496,7 +498,7 @@ function crm_display_enrolment_issues(){
 				<input type="hidden" name="action" value="enrolment_issues_weeks_used_update">
 				<td><input type='submit' value='Update meta'></form></td><td><?php
 				$args = array("user" => get_post_meta($order_id, '_customer_user', true), );
-				akimbo_crm_permalinks("students", "display", "View Students", $args);
+				echo akimbo_crm_permalinks("students", "link", "View Students", $args);
 				echo "</td></tr>";
 			}
 		}
